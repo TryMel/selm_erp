@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Sauvegardes & Restauration{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Sauvegardes & Restauration Vérifiées</h1><p>Audit 2C : Snapshots chiffrés par empreinte SHA-256, sauvegarde automatique pré-restauration et commande cron <span class="mono">python manage.py erp_backup</span>.</p></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Créer une sauvegarde immédiate</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="field"><label>Format</label>
+        <select name="backup_type">
+          <option value="JSON_DUMP">Export JSON portable (compatible SQLite ↔ MySQL)</option>
+          <option value="SQLITE_COPY">Copie binaire SQLite complète</option>
+        </select>
+      </div>
+      <div class="field"><label>Note / Motif</label><input name="notes" class="input" placeholder="Avant clôture mensuelle..." /></div>
+      <button class="btn btn-primary">Lancer la sauvegarde</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Date</th><th>Fichier</th><th>Type</th><th class="num">Taille</th><th>Empreinte SHA-256</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for b in backups %}
+          <tr>
+            <td class="small muted">{{ b.created_at|date:'d/m/Y H:i' }}</td>
+            <td class="mono"><strong>{{ b.filename }}</strong><div class="small muted">{{ b.notes }}</div></td>
+            <td><span class="badge badge-info">{{ b.backup_type }}</span></td>
+            <td class="num">{{ b.file_size|filesizeformat }}</td>
+            <td class="mono muted">{{ b.sha256|slice:':16' }}...</td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <a href="/backups/{{ b.id }}/download/" class="btn btn-secondary btn-sm">Télécharger</a>
+                <form method="post" onsubmit="return confirm('Confirmer la restauration ? Un snapshot de sécurité sera créé avant.')">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="restore" />
+                  <input type="hidden" name="backup_id" value="{{ b.id }}" />
+                  <button class="btn btn-danger btn-sm">Restaurer</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucune sauvegarde encore enregistrée.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

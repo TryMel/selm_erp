@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Pièces Jointes & Archivage{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Documents & Pièces Jointes (Conservation 10 ans OHADA)</h1><p>Audit 4B : Contrôle strict taille max 5 Mo, extensions whitelistées (.pdf, .jpg, .png, .csv, .xlsx), empreinte SHA-256 et versionning automatique.</p></div>
+</div>
+
+{% if 'documents.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Archiver une pièce justificative</h2></div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <div class="field"><label>Titre du document *</label><input name="title" class="input" placeholder="Facture fournisseur SOCIMAT" required /></div>
+      <div class="field"><label>Module lié</label><select name="entity_type"><option value="INVOICE">Facture / Vente</option><option value="PURCHASE">Achat / Réception</option><option value="EXPENSE">Justificatif Dépense</option><option value="CLIENT">Contrat Client</option><option value="GENERAL">Général</option></select></div>
+      <div class="field"><label>Référence pièce (ex: FAC-2026-00001)</label><input name="entity_ref" class="input" /></div>
+      <div class="field"><label>Fichier (max 5 Mo) *</label><input type="file" name="file" class="input" required /></div>
+      <button class="btn btn-primary">Archiver (SHA-256)</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Document</th><th>Pièce liée</th><th>Version</th><th>SHA-256</th><th>Conservation</th><th></th></tr></thead>
+      <tbody>
+        {% for d in docs %}
+          <tr>
+            <td><strong>{{ d.title }}</strong><div class="small muted">{{ d.original_filename }} ({{ d.file_size|filesizeformat }})</div></td>
+            <td class="mono">{{ d.entity_type }} · {{ d.entity_ref|default:'—' }}</td>
+            <td><span class="badge badge-info">v{{ d.version }}</span></td>
+            <td class="mono muted">{{ d.sha256|slice:':12' }}...</td>
+            <td class="small">{{ d.retention_until|date:'d/m/Y' }}</td>
+            <td class="num"><a href="/documents/{{ d.id }}/download/" class="btn btn-secondary btn-sm">Télécharger</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucune pièce archivée.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

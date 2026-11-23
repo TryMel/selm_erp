@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Dépenses{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Dépenses & Charges Opérationnelles</h1><p>Circuit de validation responsable, débit caisse/banque/Mobile Money et écriture SYSCOHADA automatique.</p></div></div>
+
+{% if 'expenses.create' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Nouvelle demande de dépense</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="field"><label>Catégorie</label><select name="category"><option>Carburant & Livraison</option><option>Électricité & Eau (CIE/SODECI)</option><option>Loyer & Entretien</option><option>Manutention</option><option>Fournitures</option></select></div>
+      <div class="field"><label>Description *</label><input name="description" class="input" required /></div>
+      <div class="field"><label>Montant FCFA *</label><input type="number" name="amount" min="1" class="input" required /></div>
+      <div class="field"><label>Compte</label><select name="account_type"><option value="CAISSE">Caisse Espèces</option><option value="MOBILE_MONEY">Mobile Money</option><option value="BANQUE">Banque</option></select></div>
+      <button class="btn btn-primary">Soumettre</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>N°</th><th>Catégorie & Description</th><th>Compte</th><th class="num">Montant</th><th>Statut</th><th>Décision</th></tr></thead>
+      <tbody>
+        {% for e in expenses %}
+          <tr>
+            <td><strong>{{ e.number }}</strong><div class="small muted">{{ e.created_at|date:'d/m/Y' }}</div></td>
+            <td><strong>{{ e.category }}</strong><div class="small muted">{{ e.description }}</div></td>
+            <td><span class="badge">{{ e.get_account_type_display }}</span></td>
+            <td class="num"><strong>{{ e.amount|fcfa }}</strong></td>
+            <td><span class="badge {% if e.status == 'APPROVED' %}badge-success{% elif e.status == 'REJECTED' %}badge-danger{% else %}badge-warning{% endif %}">{{ e.get_status_display }}</span></td>
+            <td>
+              {% if e.status == 'PENDING' and 'expenses.approve' in user_perms %}
+                <div style="display:flex; gap:6px;">
+                  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve" /><input type="hidden" name="expense_id" value="{{ e.id }}" /><button class="btn btn-success btn-sm">Valider</button></form>
+                  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="reject" /><input type="hidden" name="expense_id" value="{{ e.id }}" /><button class="btn btn-danger btn-sm">Rejeter</button></form>
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucune dépense enregistrée.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

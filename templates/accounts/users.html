@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Utilisateurs & Rôles{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Utilisateurs, Rôles & Permissions</h1><p>Module 01 : Désactivation logique sans suppression physique + révocation immédiate de toutes les sessions actives.</p></div>
+</div>
+
+{% if 'users.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Créer un compte employé</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="field"><label>Identifiant *</label><input name="username" class="input" required /></div>
+      <div class="field"><label>Nom complet *</label><input name="full_name" class="input" required /></div>
+      <div class="field"><label>Email</label><input type="email" name="email" class="input" /></div>
+      <div class="field"><label>Rôle *</label><select name="role_id">{% for r in roles %}<option value="{{ r.id }}">{{ r.name }} (Remise max {{ r.max_discount_percent }}%)</option>{% endfor %}</select></div>
+      <div class="field"><label>Mot de passe (min 6) *</label><input type="password" name="password" class="input" required /></div>
+      <div class="field"><label>PIN Override (opt.)</label><input name="pin" class="input" placeholder="ex: 1234" /></div>
+      <button class="btn btn-primary">Créer compte</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Utilisateur</th><th>Rôle & Plafond Remise</th><th>Override PIN</th><th>Statut</th><th></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td><strong>{{ u.display_name }}</strong><div class="small muted">@{{ u.username }} · {{ u.email }}</div></td>
+            <td><span class="badge badge-info">{{ u.role.name|default:'Superuser' }}</span> <span class="small muted">Max {{ u.max_discount_percent }}%</span></td>
+            <td>{% if u.can_approve_override %}<span class="badge badge-success">Habilité</span>{% else %}<span class="badge">Non</span>{% endif %}</td>
+            <td><span class="badge {% if u.is_active %}badge-success{% else %}badge-danger{% endif %}">{% if u.is_active %}Actif{% else %}Désactivé{% endif %}</span></td>
+            <td class="num">
+              {% if 'users.manage' in user_perms and u.id != request.user.id %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle" /><input type="hidden" name="user_id" value="{{ u.id }}" /><button class="btn btn-secondary btn-sm">{% if u.is_active %}Désactiver{% else %}Réactiver{% endif %}</button></form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

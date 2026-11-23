@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Chaîne des Ventes{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Ventes — Devis, Commandes, BL & Factures</h1>
+    <p>Saisie multi-lignes et transformation sans ressaisie.</p>
+  </div>
+  <form method="get" style="display:flex; gap:6px;">
+    <input name="q" value="{{ q }}" class="input" placeholder="Rechercher n° ou client..." />
+    <button class="btn btn-secondary">Chercher</button>
+  </form>
+</div>
+
+{% if 'sales.manage' in user_perms %}
+<details class="card" style="margin-bottom:18px;" open>
+  <summary class="card-header" style="cursor:pointer;"><h2>+ Nouveau document commercial (multi-lignes)</h2></summary>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="field"><label>Type</label>
+          <select name="doc_type"><option value="QUOTE">Devis (sans stock)</option><option value="ORDER">Commande (réserve stock)</option><option value="INVOICE">Facture directe (FNE + créance)</option></select>
+        </div>
+        <div class="field"><label>Client</label>
+          <select name="client_id" required>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }}{% if c.tax_exempt %} (Exonéré TVA){% endif %}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Dépôt</label>
+          <select name="warehouse_id" required>{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select>
+        </div>
+        <div class="field"><label>Notes chantier</label><input name="notes" class="input" placeholder="Conditions / lieu livraison..." /></div>
+      </div>
+
+      <div id="salesLineContainer" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+        <div class="sales-line-row" style="display:grid; grid-template-columns:2fr .8fr .8fr auto; gap:8px; align-items:end;">
+          <div class="field"><label>Article</label>
+            <select name="product_id" required>{% for p in products %}<option value="{{ p.id }}">[{{ p.sku }}] {{ p.name }} ({{ p.standard_price|fcfa }})</option>{% endfor %}</select>
+          </div>
+          <div class="field"><label>Quantité</label><input type="number" name="quantity" min="1" value="1" class="input num" required /></div>
+          <div class="field"><label>Remise %</label><input type="number" name="discount_percent" min="0" max="100" value="0" class="input num" /></div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="if(document.querySelectorAll('.sales-line-row').length>1) this.parentElement.remove()">✕</button>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; gap:8px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addSalesLine()">+ Ajouter une ligne article</button>
+        <button type="submit" class="btn btn-primary">Créer le document</button>
+      </div>
+    </form>
+  </div>
+</details>
+{% endif %}
+
+<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+  <a href="/sales/" class="btn btn-sm {% if not doc_type %}btn-primary{% else %}btn-secondary{% endif %}">Tous</a>
+  <a href="/sales/?type=QUOTE" class="btn btn-sm {% if doc_type == 'QUOTE' %}btn-primary{% else %}btn-secondary{% endif %}">Devis</a>
+  <a href="/sales/?type=ORDER" class="btn btn-sm {% if doc_type == 'ORDER' %}btn-primary{% else %}btn-secondary{% endif %}">Commandes</a>
+  <a href="/sales/?type=DELIVERY_NOTE" class="btn btn-sm {% if doc_type == 'DELIVERY_NOTE' %}btn-primary{% else %}btn-secondary{% endif %}">BL</a>
+  <a href="/sales/?type=INVOICE" class="btn btn-sm {% if doc_type == 'INVOICE' %}btn-primary{% else %}btn-secondary{% endif %}">Factures</a>
+  <a href="/sales/?type=POS_SALE" class="btn btn-sm {% if doc_type == 'POS_SALE' %}btn-primary{% else %}btn-secondary{% endif %}">Tickets POS</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>N° Document</th><th>Client</th><th>FNE (DGI CI)</th><th class="num">Total TTC</th><th class="num">Reste dû</th><th>Statut</th><th></th></tr></thead>
+      <tbody>
+        {% for d in docs %}
+          <tr>
+            <td><strong>{{ d.number }}</strong><div class="small muted">{{ d.get_doc_type_display }}{% if d.source_doc %} · de {{ d.source_doc.number }}{% endif %}</div></td>
+            <td>{{ d.client.name|default:'Comptoir' }}</td>
+            <td class="mono muted">{{ d.fne_reference|default:'—' }}</td>
+            <td class="num"><strong>{{ d.total_ttc|fcfa }}</strong></td>
+            <td class="num">{{ d.balance_due|fcfa }}</td>
+            <td><span class="badge {% if d.status == 'PAID' %}badge-success{% elif d.status == 'CANCELLED' %}badge-danger{% else %}badge-info{% endif %}">{{ d.get_status_display }}</span></td>
+            <td class="num"><a href="/sales/{{ d.id }}/" class="btn btn-secondary btn-sm">Ouvrir</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addSalesLine() {
+  const c = document.getElementById('salesLineContainer');
+  const clone = c.firstElementChild.cloneNode(true);
+  clone.querySelector('input[name="quantity"]').value = 1;
+  clone.querySelector('input[name="discount_percent"]').value = 0;
+  c.appendChild(clone);
+}
+</script>
+{% endblock %}

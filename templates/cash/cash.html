@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Caisses & Clôtures{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Caisses & Trésorerie Comptoir</h1>
+    <p>Seuil d'écart autorisé sans validation responsable : <strong>{{ active_company.cash_variance_threshold|fcfa }}</strong> · Impact SYSCOHADA auto (658000/758000).</p>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom:18px;">
+  {% for reg, active in registers %}
+    <div class="card">
+      <div class="card-header">
+        <div><h2>{{ reg.name }}</h2><div class="small muted">{{ reg.code }} · {{ reg.warehouse.name }}</div></div>
+        {% if active %}
+          <span class="badge {% if active.status == 'OPEN' %}badge-success{% else %}badge-warning{% endif %}">{{ active.get_status_display }} ({{ active.number }})</span>
+        {% else %}
+          <span class="badge">Fermée</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if not active and 'cash.operate' in user_perms %}
+          <form method="post" style="display:flex; gap:8px; align-items:end;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="open" />
+            <input type="hidden" name="register_id" value="{{ reg.id }}" />
+            <div class="field" style="flex:1;"><label>Fonds initial (FCFA)</label><input type="number" name="opening_float" value="50000" min="0" class="input" required /></div>
+            <button class="btn btn-primary">Ouvrir la caisse</button>
+          </form>
+        {% elif active and active.status == 'OPEN' %}
+          <div class="grid grid-4" style="margin-bottom:12px;">
+            <div class="small"><span class="muted">Fonds initial</span><br><strong>{{ active.opening_float|fcfa }}</strong></div>
+            <div class="small"><span class="muted">Espèces théo.</span><br><strong style="color:var(--success)">{% if 'cash.validate_close' in user_perms %}{{ active.expected_cash|fcfa }}{% else %}Comptage aveugle{% endif %}</strong></div>
+            <div class="small"><span class="muted">Mobile Money</span><br><strong>{{ active.expected_mobile|fcfa }}</strong></div>
+            <div class="small"><span class="muted">Carte / TPE</span><br><strong>{{ active.expected_card|fcfa }}</strong></div>
+          </div>
+          {% if 'cash.operate' in user_perms %}
+          <form method="post" style="border-top:1px solid var(--border); padding-top:10px; margin-bottom:10px;" class="form-grid">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="movement" />
+            <input type="hidden" name="session_id" value="{{ active.id }}" />
+            <select name="movement_type"><option value="CASH_IN">Apport / Entrée caisse</option><option value="CASH_OUT">Prélèvement / Sortie caisse</option></select>
+            <input type="number" name="amount" min="1" class="input" placeholder="Montant FCFA" required />
+            <input name="reason" class="input" placeholder="Motif justificatif..." required />
+            <button class="btn btn-secondary btn-sm">Enregistrer mouvement</button>
+          </form>
+          <form method="post" style="border-top:1px solid var(--border); padding-top:10px;" class="form-grid">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="close" />
+            <input type="hidden" name="session_id" value="{{ active.id }}" />
+            <div class="field"><label>Espèces comptées (tiroir) *</label><input type="number" name="counted_cash" min="0" placeholder="Saisir montant compté" class="input num" required /></div>
+            <div class="field"><label>Mobile Money constaté</label><input type="number" name="counted_mobile" min="0" value="0" class="input num" /></div>
+            <div class="field"><label>TPE / Carte constaté</label><input type="number" name="counted_card" min="0" value="0" class="input num" /></div>
+            <div class="field"><label>Justification écart</label><input name="variance_notes" class="input" placeholder="Obligatoire si écart ≠ 0" /></div>
+            <button class="btn btn-danger btn-sm" style="align-self:end;">Clôturer caisse</button>
+          </form>
+          {% endif %}
+        {% elif active and active.status == 'PENDING_VALIDATION' %}
+          <div class="alert alert-warning" style="margin-bottom:10px;">
+            Écart de <strong>{{ active.cash_variance|fcfa }}</strong> (motif : {{ active.variance_notes }}). Validation responsable obligatoire.
+          </div>
+          {% if 'cash.validate_close' in user_perms %}
+            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="validate" /><input type="hidden" name="session_id" value="{{ active.id }}" /><button class="btn btn-success">Valider la clôture & Comptabiliser écart</button></form>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Historique des sessions</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Session</th><th>Caisse / Caissier</th><th class="num">Attendu Esp.</th><th class="num">Compté</th><th class="num">Écart</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for s in sessions %}
+          <tr>
+            <td><strong>{{ s.number }}</strong><div class="small muted">{{ s.opened_at|date:'d/m/Y H:i' }}</div></td>
+            <td>{{ s.register.name }}<div class="small muted">{{ s.opened_by.display_name }}</div></td>
+            <td class="num">{{ s.expected_cash|fcfa }}</td>
+            <td class="num">{{ s.counted_cash|fcfa }}</td>
+            <td class="num"><span class="badge {% if s.cash_variance == 0 %}badge-success{% else %}badge-danger{% endif %}">{{ s.cash_variance|fcfa }}</span></td>
+            <td><span class="badge badge-info">{{ s.get_status_display }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

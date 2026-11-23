@@ -1,0 +1,467 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Point de Vente (POS){% endblock %}
+{% block content %}
+<div class="page-header" style="margin-bottom:14px;">
+  <div>
+    <h1>Point de Vente Comptoir</h1>
+    <p>
+      {% if session %}
+        <span class="badge badge-success">{{ session.register.name }} · Session {{ session.number }}</span>
+        <span class="small muted">Dépôt : {{ session.register.warehouse.name }} · F2 Scanner · F9 Encaisser</span>
+      {% else %}
+        <span class="badge badge-danger">Caisse fermée — ouvrez une session avant d'encaisser</span>
+        <a href="/cash/" class="btn btn-primary btn-sm" style="margin-left:8px;">Ouvrir une caisse</a>
+      {% endif %}
+    </p>
+  </div>
+  <div class="page-actions">
+    <button type="button" id="syncOfflineBtn" class="btn btn-secondary btn-sm" style="display:none;" onclick="syncOfflineSales()">Synchroniser ventes hors-ligne</button>
+  </div>
+</div>
+
+<div id="posSuccessBanner" class="alert alert-success" style="display:none; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <span id="posSuccessText"></span>
+  <div style="display:flex; gap:8px;">
+    <a id="posReceiptLink" href="#" target="_blank" class="btn btn-primary btn-sm">Imprimer Ticket / Facture</a>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('posSuccessBanner').style.display='none'">✕</button>
+  </div>
+</div>
+
+<div class="grid grid-pos">
+  <!-- Catalogue rapide -->
+  <div class="card">
+    <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+      <input id="posSearch" class="input" placeholder="Scanner code-barres (Entrée) ou rechercher article (F2)..." autocomplete="off" />
+      <div style="display:flex; gap:6px; flex-wrap:wrap;" id="catBar">
+        <button type="button" class="btn btn-primary btn-sm" data-cat="">Tous</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-cat="__FAV__">Favoris</button>
+        {% for c in categories %}
+          <button type="button" class="btn btn-secondary btn-sm" data-cat="{{ c.id }}">{{ c.name }}</button>
+        {% endfor %}
+      </div>
+      <div id="posGrid" class="pos-grid"></div>
+    </div>
+  </div>
+
+  <!-- Panier & Encaissement -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Panier (<span id="cartCount">0</span>)</h2>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="clearCart()">Vider</button>
+    </div>
+    <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="field">
+        <label for="posClient">Client (crédit / tarif pro / exonération TVA)</label>
+        <select id="posClient" onchange="repriceCart()">
+          <option value="">Client comptoir (Passage)</option>
+          {% for c in clients %}
+            <option value="{{ c.id }}" data-limit="{{ c.credit_limit }}" data-balance="{{ c.current_balance }}">
+              [{{ c.code }}] {{ c.name }} ({{ c.segment }}){% if c.tax_exempt %} · EXONÉRÉ TVA{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <div id="clientCreditHint" class="small muted"></div>
+      </div>
+
+      <div id="cartLines" style="display:flex; flex-direction:column; gap:10px; max-height:380px; overflow-y:auto;"></div>
+
+      <div style="border-top:1px solid var(--border); padding-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline;">
+          <span style="font-weight:700;">NET À PAYER (TTC)</span>
+          <span id="cartTotal" style="font-size:24px; font-weight:800;" class="num">0 FCFA</span>
+        </div>
+        <button type="button" id="checkoutBtn" class="btn btn-success" style="width:100%; margin-top:10px; padding:11px;" onclick="openPaymentModal()" {% if not session %}disabled{% endif %}>
+          Encaisser (F9) — Paiement simple ou mixte
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modale Paiement Mixte + Rendu Monnaie -->
+<dialog id="payDialog" class="erp-modal">
+  <div class="card-header">
+    <h3>Encaissement — Simple ou Mixte</h3>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('payDialog').close()">✕</button>
+  </div>
+  <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+    <div style="background:#0f172a; color:#fff; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between;">
+      <div><div class="small" style="color:#94a3b8;">Total vente</div><div id="payModalTotal" style="font-size:20px; font-weight:800;">0 FCFA</div></div>
+      <div style="text-align:right;"><div class="small" style="color:#94a3b8;">Reste à répartir</div><div id="payRemaining" style="font-size:18px; font-weight:800; color:#34d399;">0 FCFA</div></div>
+    </div>
+
+    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="quickPay('CASH')">Tout Espèces</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="quickPay('WAVE')">Tout Wave</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="quickPay('ORANGE_MONEY')">Tout Orange Money</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="addPaymentRow()">+ Paiement mixte</button>
+    </div>
+
+    <div id="paymentRows" style="display:flex; flex-direction:column; gap:8px;"></div>
+
+    <!-- Calculateur Monnaie à rendre (Espèces) -->
+    <div style="background:var(--surface-alt); border:1px solid var(--border); border-radius:8px; padding:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+        <label class="small" style="font-weight:700;">Billet remis (Espèces) :</label>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setCashGiven(5000)">5 000</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setCashGiven(10000)">10 000</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="setCashGiven(20000)">20 000</button>
+          <input id="cashGivenInput" type="number" class="input num" style="width:110px;" placeholder="Remis..." oninput="updateChangeDue()" />
+        </div>
+      </div>
+      <div class="small" style="margin-top:6px; display:flex; justify-content:space-between;">
+        <span class="muted">Monnaie à rendre au client :</span>
+        <strong id="changeDueDisplay" style="color:var(--success); font-size:15px;">0 FCFA</strong>
+      </div>
+    </div>
+
+    <div id="payError" class="alert alert-danger" style="display:none;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('payDialog').close()">Annuler</button>
+      <button type="button" id="confirmPayBtn" class="btn btn-success" onclick="submitCheckout()">Valider & Encaisser</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Modale Approbation PIN Responsable -->
+<dialog id="pinDialog" class="erp-modal">
+  <div class="card-header">
+    <h3>Autorisation Responsable Requise (PIN)</h3>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('pinDialog').close()">✕</button>
+  </div>
+  <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+    <div id="pinReasons" class="alert alert-warning"></div>
+    <div class="field"><label>Identifiant responsable</label><input id="ovUser" class="input" placeholder="Identifiant responsable..." autocomplete="off" /></div>
+    <div class="field"><label>Code PIN responsable</label><input id="ovSecret" type="password" class="input" placeholder="••••" autocomplete="off" /></div>
+    <div id="pinError" class="alert alert-danger" style="display:none;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn btn-secondary" onclick="document.getElementById('pinDialog').close()">Annuler</button>
+      <button type="button" class="btn btn-primary" onclick="submitCheckout(true)">Approuver & Valider</button>
+    </div>
+  </div>
+</dialog>
+
+{{ catalog_data|json_script:"pos-catalog-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CATALOG = JSON.parse(document.getElementById('pos-catalog-data').textContent);
+const SESSION_ID = {{ session.id|default:'null' }};
+const MAX_DISCOUNT = {{ max_discount|default:0 }};
+const CSRF = '{{ csrf_token }}';
+let activeCat = '', cart = [], payments = [];
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA'; }
+
+function renderCatalog() {
+  const q = document.getElementById('posSearch').value.trim().toLowerCase();
+  const list = CATALOG.filter(p => {
+    if (activeCat === '__FAV__' && !p.is_favorite) return false;
+    if (activeCat && activeCat !== '__FAV__' && String(p.category_id) !== activeCat) return false;
+    if (q) return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode.toLowerCase().includes(q);
+    return true;
+  });
+  document.getElementById('posGrid').innerHTML = list.map(p => `
+    <button type="button" class="pos-card" onclick="addToCart(${p.id}, null)">
+      <div>
+        <div style="display:flex; justify-content:space-between; gap:6px;">
+          <span class="mono muted">${esc(p.sku)}</span>
+          <span class="badge ${p.available <= 0 ? 'badge-danger' : p.available <= 10 ? 'badge-warning' : 'badge-success'}">${p.available} ${esc(p.unit_symbol)}</span>
+        </div>
+        <div style="font-weight:700; margin-top:6px;">${esc(p.name)}</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:end;">
+        <span class="pos-card-price">${fmt(p.standard_price)}</span>
+        ${p.packagings.length ? `<span class="badge badge-info">+${p.packagings.length} cond.</span>` : ''}
+      </div>
+    </button>
+  `).join('') || '<p class="muted">Aucun article trouvé.</p>';
+}
+
+async function resolvePrice(product, qty, packagingId) {
+  const clientId = document.getElementById('posClient').value || null;
+  if (!navigator.onLine) {
+    const pk = product.packagings.find(x => x.id === packagingId);
+    return { resolved_price: pk ? pk.price : product.standard_price, applied_rule: '' };
+  }
+  const r = await fetch('/api/pos/resolve-price/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ product_id: product.id, quantity: qty, packaging_id: packagingId, client_id: clientId })
+  });
+  return r.json();
+}
+
+async function addToCart(productId, packagingId) {
+  const prod = CATALOG.find(p => p.id === productId);
+  if (!prod) return;
+  const key = `${productId}:${packagingId || 'base'}`;
+  let item = cart.find(c => c.key === key);
+  const nextQty = item ? item.quantity + 1 : 1;
+  const priced = await resolvePrice(prod, nextQty, packagingId);
+  if (item) {
+    item.quantity = nextQty;
+    item.unit_price = priced.resolved_price;
+    item.pricing_rule_applied = priced.applied_rule || '';
+  } else {
+    cart.push({ key, product: prod, packaging_id: packagingId, quantity: 1, unit_price: priced.resolved_price, discount_percent: 0, pricing_rule_applied: priced.applied_rule || '' });
+  }
+  renderCart();
+}
+
+async function updateQty(idx, qty) {
+  const item = cart[idx];
+  item.quantity = Math.max(0.01, Number(qty) || 1);
+  const priced = await resolvePrice(item.product, item.quantity, item.packaging_id);
+  item.unit_price = priced.resolved_price;
+  item.pricing_rule_applied = priced.applied_rule || '';
+  renderCart();
+}
+
+async function changePkg(idx, pkgVal) {
+  const item = cart[idx];
+  item.packaging_id = pkgVal ? Number(pkgVal) : null;
+  item.key = `${item.product.id}:${item.packaging_id || 'base'}`;
+  const priced = await resolvePrice(item.product, item.quantity, item.packaging_id);
+  item.unit_price = priced.resolved_price;
+  item.pricing_rule_applied = priced.applied_rule || '';
+  renderCart();
+}
+
+async function repriceCart() {
+  const sel = document.getElementById('posClient');
+  const opt = sel.options[sel.selectedIndex];
+  const hint = document.getElementById('clientCreditHint');
+  hint.textContent = opt && opt.value ? `Encours : ${fmt(opt.dataset.balance)} / Plafond : ${fmt(opt.dataset.limit)}` : '';
+  for (const item of cart) {
+    const priced = await resolvePrice(item.product, item.quantity, item.packaging_id);
+    item.unit_price = priced.resolved_price;
+    item.pricing_rule_applied = priced.applied_rule || '';
+  }
+  renderCart();
+}
+
+function cartTotalVal() {
+  return cart.reduce((s, i) => s + Math.round(i.quantity * i.unit_price * (1 - i.discount_percent / 100)), 0);
+}
+
+function renderCart() {
+  document.getElementById('cartCount').textContent = cart.length;
+  document.getElementById('cartTotal').textContent = fmt(cartTotalVal());
+  document.getElementById('cartLines').innerHTML = cart.map((it, idx) => {
+    const lineTot = Math.round(it.quantity * it.unit_price * (1 - it.discount_percent / 100));
+    const over = it.discount_percent > MAX_DISCOUNT;
+    const pk = it.product.packagings.find(x => x.id === it.packaging_id);
+    const neededBase = it.quantity * (pk ? pk.factor : 1);
+    const overStock = neededBase > it.product.available;
+    return `
+      <div style="border:1px solid ${overStock ? 'var(--danger)' : 'var(--border)'}; border-radius:8px; padding:10px; background:var(--surface-alt);">
+        <div style="display:flex; justify-content:space-between; gap:8px;">
+          <strong class="small">${esc(it.product.name)}</strong>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="cart.splice(${idx},1); renderCart();">✕</button>
+        </div>
+        ${it.pricing_rule_applied ? `<div class="badge badge-success" style="margin-top:4px;">${esc(it.pricing_rule_applied)}</div>` : ''}
+        ${overStock ? `<div class="badge badge-danger" style="margin-top:4px;">Stock insuffisant (${it.product.available} dispo)</div>` : ''}
+        <div style="display:grid; grid-template-columns:1.2fr 1.1fr .7fr; gap:6px; margin-top:8px; align-items:center;">
+          <select onchange="changePkg(${idx}, this.value)">
+            <option value="">${esc(it.product.unit_name)} (×1)</option>
+            ${it.product.packagings.map(p => `<option value="${p.id}" ${it.packaging_id === p.id ? 'selected' : ''}>${esc(p.label)} (×${p.factor})</option>`).join('')}
+          </select>
+          <div style="display:flex; gap:3px; align-items:center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="updateQty(${idx}, Math.max(1, ${it.quantity} - 1))">−</button>
+            <input type="number" step="any" min="0.01" class="input num" style="text-align:center; padding:6px 4px;" value="${it.quantity}" onchange="updateQty(${idx}, this.value)" />
+            <button type="button" class="btn btn-secondary btn-sm" onclick="updateQty(${idx}, ${it.quantity} + 1)">+</button>
+          </div>
+          <input type="number" step="0.5" min="0" max="100" class="input num" value="${it.discount_percent}" onchange="cart[${idx}].discount_percent=Math.min(100,Math.max(0,Number(this.value)||0)); renderCart();" title="Remise %" />
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-top:6px;" class="small">
+          <span class="muted">PU ${fmt(it.unit_price)} ${over ? '<span class="badge badge-warning">PIN resp.</span>' : ''}</span>
+          <strong>${fmt(lineTot)}</strong>
+        </div>
+      </div>
+    `;
+  }).join('') || '<p class="muted small" style="text-align:center; padding:24px;">Panier vide — scannez ou cliquez un article.</p>';
+}
+
+function clearCart() { cart = []; renderCart(); }
+
+function openPaymentModal() {
+  if (!cart.length || !SESSION_ID) return;
+  payments = [{ payment_method: 'CASH', amount: cartTotalVal(), reference: '' }];
+  document.getElementById('payError').style.display = 'none';
+  document.getElementById('cashGivenInput').value = '';
+  renderPaymentRows();
+  document.getElementById('payDialog').showModal();
+}
+
+function quickPay(method) {
+  payments = [{ payment_method: method, amount: cartTotalVal(), reference: '' }];
+  renderPaymentRows();
+}
+
+function addPaymentRow() {
+  const rem = Math.max(0, cartTotalVal() - payments.reduce((s, p) => s + (Number(p.amount) || 0), 0));
+  payments.push({ payment_method: 'WAVE', amount: rem, reference: '' });
+  renderPaymentRows();
+}
+
+function updatePayTotals() {
+  const total = cartTotalVal();
+  const sum = payments.reduce((s, p) => s + Math.round(Number(p.amount) || 0), 0);
+  const rem = total - sum;
+  document.getElementById('payModalTotal').textContent = fmt(total);
+  document.getElementById('payRemaining').textContent = fmt(rem);
+  document.getElementById('payRemaining').style.color = rem === 0 ? '#34d399' : '#fbbf24';
+  document.getElementById('confirmPayBtn').disabled = rem !== 0;
+  updateChangeDue();
+}
+
+function setCashGiven(val) {
+  document.getElementById('cashGivenInput').value = val;
+  updateChangeDue();
+}
+
+function updateChangeDue() {
+  const cashPart = payments.filter(p => p.payment_method === 'CASH').reduce((s, p) => s + Math.round(Number(p.amount) || 0), 0);
+  const given = Number(document.getElementById('cashGivenInput').value) || 0;
+  const change = Math.max(0, given - cashPart);
+  document.getElementById('changeDueDisplay').textContent = fmt(change);
+}
+
+function renderPaymentRows() {
+  const hasClient = Boolean(document.getElementById('posClient').value);
+  document.getElementById('paymentRows').innerHTML = payments.map((p, i) => `
+    <div style="display:grid; grid-template-columns:1.3fr 1fr 1fr auto; gap:6px; align-items:center;">
+      <select onchange="payments[${i}].payment_method=this.value; updatePayTotals();">
+        <option value="CASH" ${p.payment_method==='CASH'?'selected':''}>Espèces (FCFA)</option>
+        <option value="WAVE" ${p.payment_method==='WAVE'?'selected':''}>Wave Mobile Money</option>
+        <option value="ORANGE_MONEY" ${p.payment_method==='ORANGE_MONEY'?'selected':''}>Orange Money</option>
+        <option value="MTN_MOMO" ${p.payment_method==='MTN_MOMO'?'selected':''}>MTN MoMo</option>
+        <option value="CARD" ${p.payment_method==='CARD'?'selected':''}>Carte / TPE</option>
+        <option value="CREDIT" ${p.payment_method==='CREDIT'?'selected':''} ${!hasClient?'disabled':''}>Crédit client</option>
+      </select>
+      <input type="number" class="input num" value="${p.amount}" oninput="payments[${i}].amount=Number(this.value)||0; updatePayTotals();" />
+      <input class="input" placeholder="Réf. Wave/TPE" value="${esc(p.reference)}" oninput="payments[${i}].reference=this.value" />
+      ${payments.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" onclick="payments.splice(${i},1); renderPaymentRows();">✕</button>` : '<span></span>'}
+    </div>
+  `).join('');
+  updatePayTotals();
+}
+
+async function submitCheckout(withPin = false) {
+  const basePayload = {
+    session_id: SESSION_ID,
+    client_id: document.getElementById('posClient').value || null,
+    lines: cart.map(c => ({ product_id: c.product.id, packaging_id: c.packaging_id, quantity: c.quantity, discount_percent: c.discount_percent })),
+    payments: payments.filter(p => p.amount > 0),
+  };
+
+  if (!navigator.onLine) {
+    // Sécurité : jamais de PIN/secret stocké en localStorage
+    const q = JSON.parse(localStorage.getItem('quincapro_offline_queue') || '[]');
+    q.push(basePayload);
+    localStorage.setItem('quincapro_offline_queue', JSON.stringify(q));
+    document.getElementById('payDialog').close();
+    clearCart();
+    refreshOfflineBtn();
+    alert('Vente enregistrée localement (mode hors-ligne). Synchronisez au retour de la connexion.');
+    return;
+  }
+
+  const payload = {
+    ...basePayload,
+    override_username: withPin ? document.getElementById('ovUser').value : '',
+    override_secret: withPin ? document.getElementById('ovSecret').value : '',
+  };
+
+  const r = await fetch('/api/pos/checkout/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(payload),
+  });
+  const data = await r.json();
+  if (r.ok && data.ok) {
+    document.getElementById('payDialog').close();
+    document.getElementById('pinDialog').close();
+    clearCart();
+    document.getElementById('posSuccessText').textContent = `Vente ${data.number} encaissée (${fmt(data.total_ttc)})${data.fne_reference ? ' · FNE ' + data.fne_reference : ''}`;
+    document.getElementById('posReceiptLink').href = data.receipt_url;
+    document.getElementById('posSuccessBanner').style.display = 'flex';
+    document.getElementById('posSearch').focus();
+  } else if (data.code === 'MANAGER_OVERRIDE_REQUIRED') {
+    const reasonsEl = document.getElementById('pinReasons');
+    reasonsEl.innerHTML = '';
+    (data.reasons || [data.message]).forEach(txt => {
+      const div = document.createElement('div');
+      div.textContent = '• ' + txt;
+      reasonsEl.appendChild(div);
+    });
+    document.getElementById('pinError').style.display = 'none';
+    document.getElementById('ovSecret').value = '';
+    document.getElementById('pinDialog').showModal();
+  } else {
+    const errEl = withPin ? document.getElementById('pinError') : document.getElementById('payError');
+    errEl.textContent = data.message || 'Erreur lors de la vente';
+    errEl.style.display = 'block';
+  }
+}
+
+function refreshOfflineBtn() {
+  const q = JSON.parse(localStorage.getItem('quincapro_offline_queue') || '[]');
+  const btn = document.getElementById('syncOfflineBtn');
+  if (q.length) { btn.style.display = 'inline-flex'; btn.textContent = `Synchroniser ${q.length} vente(s) hors-ligne`; }
+  else { btn.style.display = 'none'; }
+}
+
+async function syncOfflineSales() {
+  const q = JSON.parse(localStorage.getItem('quincapro_offline_queue') || '[]');
+  const rem = [], errs = [];
+  for (const payload of q) {
+    const r = await fetch('/api/pos/checkout/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, body: JSON.stringify(payload) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); rem.push(payload); errs.push(d.message || 'Erreur'); }
+  }
+  localStorage.setItem('quincapro_offline_queue', JSON.stringify(rem));
+  refreshOfflineBtn();
+  if (errs.length) alert('Certaines ventes hors-ligne ont échoué :\n' + errs.join('\n'));
+  else window.location.reload();
+}
+
+document.getElementById('catBar').addEventListener('click', e => {
+  if (e.target.dataset.cat !== undefined) {
+    activeCat = e.target.dataset.cat;
+    document.querySelectorAll('#catBar button').forEach(b => b.className = 'btn btn-secondary btn-sm');
+    e.target.className = 'btn btn-primary btn-sm';
+    renderCatalog();
+  }
+});
+
+document.getElementById('posSearch').addEventListener('input', renderCatalog);
+document.getElementById('posSearch').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const code = e.target.value.trim();
+    const match = CATALOG.find(p => p.barcode === code || p.sku.toLowerCase() === code.toLowerCase() || p.packagings.some(pk => pk.barcode === code));
+    if (match) {
+      const pk = match.packagings.find(x => x.barcode === code);
+      addToCart(match.id, pk ? pk.id : null);
+      e.target.value = '';
+      renderCatalog();
+    }
+  }
+});
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'F2') { e.preventDefault(); document.getElementById('posSearch').focus(); }
+  if (e.key === 'F9') { e.preventDefault(); openPaymentModal(); }
+});
+
+renderCatalog();
+renderCart();
+refreshOfflineBtn();
+</script>
+{% endblock %}

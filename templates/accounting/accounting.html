@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Comptabilité SYSCOHADA{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Comptabilité Générale (SYSCOHADA)</h1><p>Module distinct en partie double stricte — Contrôle : Total Débits ({{ tot_debit|fcfa }}) = Total Crédits ({{ tot_credit|fcfa }}).</p></div>
+  <a href="?export=csv" class="btn btn-secondary">Exporter Balance CSV</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Balance Générale des Comptes</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Compte</th><th>Intitulé SYSCOHADA</th><th class="num">Total Débit</th><th class="num">Total Crédit</th><th class="num">Solde</th></tr></thead>
+      <tbody>
+        {% for b in balance %}
+          <tr>
+            <td class="mono"><strong>{{ b.account.code }}</strong></td>
+            <td>{{ b.account.name }}</td>
+            <td class="num">{{ b.debit|fcfa }}</td>
+            <td class="num">{{ b.credit|fcfa }}</td>
+            <td class="num"><strong>{{ b.balance|fcfa }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Dernières écritures comptables</h2></div>
+  <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+    {% for e in entries %}
+      <div style="border:1px solid var(--border); border-radius:8px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <strong>{{ e.number }} — {{ e.description }}</strong>
+          <span class="badge badge-info">Journal {{ e.journal_code }} · {{ e.entry_date|date:'d/m/Y H:i' }}</span>
+        </div>
+        <table class="erp-table">
+          <tbody>
+            {% for l in e.lines.all %}
+              <tr>
+                <td class="mono" style="width:240px;">{{ l.account.code }} {{ l.account.name }}</td>
+                <td class="small">{{ l.label }}</td>
+                <td class="num" style="width:130px;">{% if l.debit %}{{ l.debit|fcfa }}{% else %}—{% endif %}</td>
+                <td class="num" style="width:130px;">{% if l.credit %}{{ l.credit|fcfa }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Livraisons Chantier{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Livraisons Chantier & Flotte</h1><p>Affectation chauffeur/véhicule, suivi d'acheminement et confirmation réceptionnaire.</p></div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>N° Livraison</th><th>Client & Adresse</th><th>Chauffeur / Véhicule</th><th>Statut</th><th>Mise à jour</th></tr></thead>
+      <tbody>
+        {% for d in deliveries %}
+          <tr>
+            <td><strong>{{ d.number }}</strong><div class="small muted">Doc : <a href="/sales/{{ d.sales_document.id }}/" class="link">{{ d.sales_document.number }}</a></div></td>
+            <td><strong>{{ d.client.name|default:'—' }}</strong><div class="small muted">{{ d.delivery_address }}</div></td>
+            <td class="small">{{ d.driver_name|default:'Non assigné' }} <span class="mono">{{ d.vehicle_plate }}</span>{% if d.recipient_name %}<div class="muted">Reçu par : {{ d.recipient_name }}</div>{% endif %}</td>
+            <td><span class="badge {% if d.status == 'DELIVERED' %}badge-success{% elif d.status == 'FAILED' %}badge-danger{% else %}badge-warning{% endif %}">{{ d.get_status_display }}</span>{% if d.failure_reason %}<div class="small" style="color:var(--danger)">{{ d.failure_reason }}</div>{% endif %}</td>
+            <td>
+              {% if 'deliveries.manage' in user_perms and d.status != 'DELIVERED' %}
+                <form method="post" style="display:flex; gap:6px; flex-wrap:wrap;">
+                  {% csrf_token %}
+                  <input type="hidden" name="delivery_id" value="{{ d.id }}" />
+                  <input name="driver_name" class="input" style="width:120px;" placeholder="Chauffeur..." value="{{ d.driver_name }}" />
+                  <input name="vehicle_plate" class="input" style="width:105px;" placeholder="Plaque..." value="{{ d.vehicle_plate }}" />
+                  <select name="status" style="width:auto;">
+                    <option value="LOADED">Chargée camion</option>
+                    <option value="IN_TRANSIT">En route chantier</option>
+                    <option value="DELIVERED">Livrée & Confirmée</option>
+                    <option value="FAILED">Échec livraison</option>
+                    <option value="RESCHEDULED">Reprogrammer</option>
+                  </select>
+                  <input name="recipient_name" class="input" style="width:120px;" placeholder="Réceptionnaire..." />
+                  <input name="failure_reason" class="input" style="width:130px;" placeholder="Motif si échec..." />
+                  <button class="btn btn-primary btn-sm">Enregistrer</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="muted" style="text-align:center; padding:24px;">Aucune livraison chantier planifiée.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

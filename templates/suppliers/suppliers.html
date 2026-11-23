@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Fournisseurs{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Fournisseurs & Évaluations</h1><p>Module 06 : Suivi des délais, conformité livraisons et règlement des dettes.</p></div></div>
+
+{% if 'suppliers.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Nouveau fournisseur</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="field"><label>Raison sociale *</label><input name="name" class="input" required /></div>
+      <div class="field"><label>Contact</label><input name="contact_name" class="input" /></div>
+      <div class="field"><label>Téléphone</label><input name="phone" class="input" /></div>
+      <div class="field"><label>Délai moyen (j)</label><input type="number" name="avg_lead_days" value="3" class="input" /></div>
+      <button class="btn btn-primary">Créer</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Fournisseur</th><th>Fiabilité</th><th class="num">Dette actuelle</th><th>Règlement</th></tr></thead>
+      <tbody>
+        {% for s in suppliers %}
+          <tr>
+            <td><strong>{{ s.name }}</strong><div class="small muted">{{ s.code }} · {{ s.contact_name }} · {{ s.phone }}</div></td>
+            <td><span class="badge badge-success">{{ s.conformity_rate }}% conf.</span> <span class="small muted">{{ s.avg_lead_days }}j · ★ {{ s.rating }}</span></td>
+            <td class="num"><strong>{{ s.current_debt|fcfa }}</strong></td>
+            <td>
+              {% if s.current_debt > 0 and 'suppliers.manage' in user_perms %}
+                <form method="post" style="display:flex; gap:6px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="pay" />
+                  <input type="hidden" name="supplier_id" value="{{ s.id }}" />
+                  <input type="number" name="amount" min="1" max="{{ s.current_debt|floatformat:0 }}" value="{{ s.current_debt|floatformat:0 }}" class="input num" style="width:110px;" required />
+                  <select name="payment_method" style="width:auto;"><option value="BANK_TRANSFER">Virement</option><option value="CASH">Espèces</option><option value="WAVE">Wave</option></select>
+                  <button class="btn btn-secondary btn-sm">Régler</button>
+                </form>
+              {% else %}<span class="small muted">Aucune dette</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

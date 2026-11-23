@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Accès refusé{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px; margin:40px auto;">
+  <div class="card-body" style="text-align:center; padding:32px;">
+    <span class="badge badge-danger" style="margin-bottom:10px;">403 · Restriction de module</span>
+    <h1 style="margin:6px 0 8px;">Accès non autorisé</h1>
+    <p class="muted">Votre rôle (<strong>{{ request.user.role.name|default:'Non défini' }}</strong>) ne dispose pas de la permission requise pour cette opération : <span class="mono">{{ required_perms|join:', ' }}</span>.</p>
+    <a href="/" class="btn btn-primary" style="margin-top:14px;">Retour au tableau de bord</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Stocks & Transferts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Stocks Multi-Dépôts & Mouvements</h1>
+    <p>Politique stock négatif : <strong>{{ active_company.get_negative_stock_policy_display }}</strong> · Valorisation : <strong>{{ active_company.valuation_method }}</strong>.</p>
+  </div>
+  <form method="get" style="display:flex; gap:6px;">
+    <select name="warehouse_id" onchange="this.form.submit()">
+      <option value="">Tous les dépôts</option>
+      {% for w in warehouses %}<option value="{{ w.id }}" {% if selected_wh == w.id|stringformat:'s' %}selected{% endif %}>{{ w.name }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="grid grid-2" style="margin-bottom:18px;">
+  {% if 'inventory.transfer' in user_perms %}
+  <div class="card">
+    <div class="card-header"><h3>Transfert entre dépôts</h3></div>
+    <div class="card-body">
+      <form method="post" class="form-grid" style="align-items:end;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="transfer" />
+        <div class="field"><label>Article</label><select name="product_id">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Source</label><select name="from_warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Destination</label><select name="to_warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Qté</label><input type="number" name="quantity" min="1" value="1" class="input" required /></div>
+        <button class="btn btn-primary btn-sm">Transférer</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if 'inventory.adjust' in user_perms %}
+  <div class="card">
+    <div class="card-header"><h3>Ajustement / Perte / Quarantaine</h3></div>
+    <div class="card-body">
+      <form method="post" class="form-grid" style="align-items:end;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="adjust" />
+        <div class="field"><label>Article</label><select name="product_id">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Dépôt</label><select name="warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Opération</label><select name="movement_type"><option value="ADJUSTMENT_IN">Entrée (+)</option><option value="ADJUSTMENT_OUT">Sortie (−)</option><option value="LOSS_DAMAGE">Perte / Casse (−)</option><option value="QUARANTINE">Quarantaine</option></select></div>
+        <div class="field"><label>Qté</label><input type="number" name="quantity" min="1" value="1" class="input" required /></div>
+        <div class="field"><label>Motif *</label><input name="reason" class="input" required placeholder="Sac déchiré..." /></div>
+        <button class="btn btn-secondary btn-sm">Appliquer</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>État des stocks par dépôt</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead>
+        <tr><th>Article</th><th>Dépôt / Emplacement</th><th class="num">Physique</th><th class="num">Réservé</th><th class="num">Quarantaine</th><th class="num">Disponible</th>{% if can_view_cost %}<th class="num">Valorisation</th>{% endif %}</tr>
+      </thead>
+      <tbody>
+        {% for sl in levels %}
+          <tr>
+            <td><strong>{{ sl.product.name }}</strong><div class="mono muted">{{ sl.product.sku }}</div></td>
+            <td>{{ sl.warehouse.name }}<div class="small muted">{{ sl.location|default:'—' }}</div></td>
+            <td class="num">{{ sl.physical_qty|qty }}</td>
+            <td class="num" style="color:var(--info)">{{ sl.reserved_qty|qty }}</td>
+            <td class="num" style="color:var(--danger)">{{ sl.blocked_qty|qty }}</td>
+            <td class="num"><span class="badge {% if sl.is_low_stock %}badge-danger{% else %}badge-success{% endif %}">{{ sl.available_qty|qty }} {{ sl.product.base_unit.symbol }}</span></td>
+            {% if can_view_cost %}<td class="num"><strong>{{ sl.valuation|fcfa }}</strong></td>{% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Derniers mouvements de stock (immuables)</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Réf.</th><th>Type</th><th>Article</th><th>Dépôt</th><th class="num">Qté base</th><th>Motif / Pièce</th></tr></thead>
+      <tbody>
+        {% for m in movements %}
+          <tr>
+            <td class="mono">{{ m.reference }}<div class="small muted">{{ m.created_at|date:'d/m H:i' }}</div></td>
+            <td><span class="badge {% if m.qty_base >= 0 %}badge-success{% else %}badge-warning{% endif %}">{{ m.get_movement_type_display }}</span></td>
+            <td>{{ m.product.name }}</td>
+            <td>{{ m.warehouse.name }}</td>
+            <td class="num"><strong>{{ m.qty_base|qty }}</strong></td>
+            <td class="small muted">{{ m.reason }} {{ m.document_number }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

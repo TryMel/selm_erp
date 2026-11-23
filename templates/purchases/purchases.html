@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Achats & Réceptions{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Achats Fournisseurs & Réceptions</h1><p>Commandes multi-lignes par unité ou carton, réceptions partielles/complètes et recalcul CMUP HT.</p></div>
+</div>
+
+{% if 'purchases.manage' in user_perms %}
+<details class="card" style="margin-bottom:18px;" open>
+  <summary class="card-header" style="cursor:pointer;"><h2>+ Nouvelle commande fournisseur (multi-lignes)</h2></summary>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="field"><label>Fournisseur</label><select name="supplier_id">{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Dépôt destination</label><select name="warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Notes commande</label><input name="notes" class="input" placeholder="Délai / instructions quai..." /></div>
+      </div>
+
+      <div id="poLines" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+        <div class="po-line-row" style="display:grid; grid-template-columns:2fr 1.2fr .7fr 1fr auto; gap:8px; align-items:end;">
+          <div class="field"><label>Article</label>
+            <select name="product_id" onchange="syncPoCost(this)">
+              {% for p in products %}
+                <option value="{{ p.id }}" data-cost="{{ p.purchase_cost|floatformat:0 }}" {% if prefill_product_id == p.id|stringformat:'s' %}selected{% endif %}>[{{ p.sku }}] {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field"><label>Conditionnement</label>
+            <select name="packaging_id">
+              <option value="">Unité de base (×1)</option>
+              {% for p in products %}{% for pk in p.packagings.all %}<option value="{{ pk.id }}">{{ p.sku }} — {{ pk.label }} (×{{ pk.conversion_factor|qty }})</option>{% endfor %}{% endfor %}
+            </select>
+          </div>
+          <div class="field"><label>Qté</label><input type="number" name="ordered_qty" min="1" value="10" class="input num" required /></div>
+          <div class="field"><label>Coût unitaire TTC</label><input type="number" name="unit_cost" min="0" value="" placeholder="FCFA" class="input num" required /></div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="if(document.querySelectorAll('.po-line-row').length>1) this.parentElement.remove()">✕</button>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="addPoLine()">+ Ajouter un article</button>
+        <button class="btn btn-primary">Créer commande</button>
+      </div>
+    </form>
+  </div>
+</details>
+{% endif %}
+
+{% for po in orders %}
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-header">
+    <div><strong>{{ po.number }}</strong> · {{ po.supplier.name }} → {{ po.warehouse.name }} <span class="small muted">({{ po.created_at|date:'d/m/Y' }})</span></div>
+    <div><strong>{{ po.total_ttc|fcfa }}</strong> <span class="badge {% if po.status == 'RECEIVED' %}badge-success{% else %}badge-warning{% endif %}">{{ po.get_status_display }}</span></div>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="receive" />
+      <input type="hidden" name="po_id" value="{{ po.id }}" />
+      <table class="erp-table">
+        <thead><tr><th>Article & Unité</th><th class="num">Commandé</th><th class="num">Déjà reçu</th><th class="num">Réceptionner</th></tr></thead>
+        <tbody>
+          {% for l in po.lines.all %}
+            <tr>
+              <td><strong>{{ l.product_name }}</strong> <span class="small muted">({{ l.unit_label }} ×{{ l.conversion_factor|qty }})</span></td>
+              <td class="num">{{ l.ordered_qty|qty }}</td>
+              <td class="num">{{ l.received_qty|qty }}</td>
+              <td class="num">
+                {% if l.remaining_qty > 0 and 'purchases.receive' in user_perms %}
+                  <input type="number" step="any" min="0" max="{{ l.remaining_qty|qty }}" name="rec_{{ l.id }}" value="{{ l.remaining_qty|qty }}" class="input num" style="width:90px;" />
+                {% else %}
+                  <span class="badge badge-success">Soldé</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if po.status in 'ORDERED,PARTIALLY_RECEIVED' and 'purchases.receive' in user_perms %}
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+          <input name="supplier_invoice_ref" class="input" style="max-width:240px;" placeholder="N° BL / Facture fournisseur..." />
+          <button class="btn btn-success btn-sm">Valider la réception & Entrer en stock</button>
+        </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncPoCost(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const row = sel.closest('.po-line-row');
+  if (opt && opt.dataset.cost) row.querySelector('input[name="unit_cost"]').value = opt.dataset.cost;
+}
+function addPoLine() {
+  const c = document.getElementById('poLines');
+  const clone = c.firstElementChild.cloneNode(true);
+  c.appendChild(clone);
+  syncPoCost(clone.querySelector('select[name="product_id"]'));
+}
+document.querySelectorAll('.po-line-row select[name="product_id"]').forEach(syncPoCost);
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}{{ doc.number }}{% endblock %}
+{% block content %}
+<div class="page-header no-print">
+  <div>
+    <h1>{{ doc.get_doc_type_display }} {{ doc.number }}</h1>
+    <p>
+      Statut : <span class="badge badge-info">{{ doc.get_status_display }}</span>
+      {% if doc.source_doc %} · Issu de <a href="/sales/{{ doc.source_doc.id }}/" class="link">{{ doc.source_doc.number }}</a>{% endif %}
+      {% for child in derived %} · Suite : <a href="/sales/{{ child.id }}/" class="link">{{ child.number }} ({{ child.get_doc_type_display }})</a>{% endfor %}
+    </p>
+  </div>
+  <div class="page-actions">
+    {% if doc.doc_type == 'POS_SALE' %}<a href="/pos/" class="btn btn-secondary">← Retour POS</a>{% endif %}
+    {% if 'sales.manage' in user_perms and doc.status != 'CANCELLED' %}
+      {% if doc.doc_type == 'QUOTE' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="transform" /><input type="hidden" name="target_type" value="ORDER" /><button class="btn btn-primary">Transformer en Commande</button></form>
+      {% elif doc.doc_type == 'ORDER' and doc.status == 'CONFIRMED' %}
+        <form method="post" style="display:flex; gap:6px;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="transform" /><input type="hidden" name="target_type" value="DELIVERY_NOTE" />
+          <input name="delivery_address" class="input" style="width:200px;" placeholder="Adresse chantier..." value="{{ doc.client.address|default:'' }}" />
+          <button class="btn btn-primary">Générer BL + Livraison</button>
+        </form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="transform" /><input type="hidden" name="target_type" value="INVOICE" /><button class="btn btn-secondary">Facturer directement</button></form>
+      {% elif doc.doc_type == 'DELIVERY_NOTE' and doc.status != 'INVOICED' %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="transform" /><input type="hidden" name="target_type" value="INVOICE" /><button class="btn btn-primary">Transformer en Facture</button></form>
+      {% endif %}
+    {% endif %}
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Imprimer</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;">
+      <div>
+        <div style="font-size:18px; font-weight:800;">{{ active_company.legal_name }}</div>
+        <div class="small muted">{{ active_company.address }} · {{ active_company.phone }}</div>
+        <div class="small muted">NCC : {{ active_company.ncc }} · RCCM : {{ active_company.rccm }}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:18px; font-weight:800; color:var(--brand-dark);">{{ doc.number }}</div>
+        <div class="small muted">Date : {{ doc.created_at|date:'d/m/Y H:i' }}</div>
+        <div class="small"><strong>Client :</strong> {% if doc.client %}<a href="/clients/?q={{ doc.client.code }}" class="link">{{ doc.client.name }}</a>{% else %}Client Comptoir{% endif %}</div>
+        {% if doc.fne_reference %}<div class="mono" style="margin-top:4px; color:var(--success);">FNE DGI CI : {{ doc.fne_reference }}</div>{% endif %}
+        {% if doc.approved_by %}<div class="small" style="color:var(--brand-dark);">Approuvé par : {{ doc.approved_by.display_name }}</div>{% endif %}
+      </div>
+    </div>
+
+    <table class="erp-table">
+      <thead><tr><th>Article</th><th class="num">Qté</th><th class="num">PU</th><th class="num">Remise</th><th>Taxe</th><th class="num">Total TTC</th></tr></thead>
+      <tbody>
+        {% for l in lines %}
+          <tr>
+            <td><strong>{{ l.product_name }}</strong>{% if l.pricing_rule_applied %}<div class="small muted">{{ l.pricing_rule_applied }}</div>{% endif %}</td>
+            <td class="num">{{ l.quantity|qty }} {{ l.unit_label }}</td>
+            <td class="num">{{ l.unit_price|fcfa }}</td>
+            <td class="num">{{ l.discount_percent }}%</td>
+            <td><span class="badge">{{ l.tax_label }}</span></td>
+            <td class="num"><strong>{{ l.line_total_ttc|fcfa }}</strong></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-top:16px;">
+      <div class="small">
+        {% if payments %}
+          <strong>Règlements enregistrés :</strong>
+          <ul style="margin:6px 0 0; padding-left:18px;">
+            {% for p in payments %}
+              <li>{{ p.get_payment_method_display }} : <strong>{{ p.amount|fcfa }}</strong> {% if p.reference %}<span class="mono muted">({{ p.reference }})</span>{% endif %} — {{ p.created_at|date:'d/m/Y H:i' }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if deliveries %}
+          <div style="margin-top:8px;"><strong>Livraison chantier :</strong> {% for dl in deliveries %}<a href="/deliveries/" class="link">{{ dl.number }} ({{ dl.get_status_display }})</a>{% endfor %}</div>
+        {% endif %}
+        {% if doc.fne_qr_payload %}
+          <div class="mono muted" style="margin-top:10px; font-size:11px;">Empreinte FNE : {{ doc.fne_qr_payload }}</div>
+        {% endif %}
+      </div>
+
+      <div style="width:280px; display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; justify-content:space-between;"><span class="muted">Sous-total HT</span><span class="num">{{ doc.subtotal_ht|fcfa }}</span></div>
+        <div style="display:flex; justify-content:space-between;"><span class="muted">TVA</span><span class="num">{{ doc.tax_total|fcfa }}</span></div>
+        <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:800; border-top:1px solid var(--border); padding-top:8px;"><span>TOTAL TTC</span><span class="num">{{ doc.total_ttc|fcfa }}</span></div>
+        <div style="display:flex; justify-content:space-between; color:var(--success);"><span>Encaissé</span><span class="num">{{ doc.paid_amount|fcfa }}</span></div>
+        <div style="display:flex; justify-content:space-between; font-weight:700; color:var(--brand-dark);"><span>Reste dû</span><span class="num">{{ doc.balance_due|fcfa }}</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if 'sales.manage' in user_perms and doc.status != 'CANCELLED' %}
+<div class="grid grid-2 no-print" style="margin-top:16px;">
+  {% if doc.balance_due > 0 and doc.doc_type in 'INVOICE,POS_SALE' %}
+  <div class="card">
+    <div class="card-header"><h3>Encaisser un règlement</h3></div>
+    <div class="card-body">
+      <form method="post" class="form-grid" style="align-items:end;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="pay" />
+        <div class="field"><label>Montant (FCFA)</label><input type="number" name="amount" class="input" value="{{ doc.balance_due|floatformat:0 }}" max="{{ doc.balance_due|floatformat:0 }}" required /></div>
+        <div class="field"><label>Moyen</label><select name="payment_method"><option value="CASH">Espèces</option><option value="WAVE">Wave</option><option value="ORANGE_MONEY">Orange Money</option><option value="BANK_TRANSFER">Virement</option></select></div>
+        <div class="field"><label>Référence</label><input name="reference" class="input" /></div>
+        <button class="btn btn-success">Enregistrer</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if doc.doc_type in 'QUOTE,ORDER' %}
+  <div class="card">
+    <div class="card-header"><h3>Annulation justifiée (libère le stock réservé)</h3></div>
+    <div class="card-body">
+      <form method="post" style="display:flex; gap:8px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cancel" />
+        <input name="reason" class="input" placeholder="Motif obligatoire d'annulation..." required />
+        <button class="btn btn-danger">Annuler document</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

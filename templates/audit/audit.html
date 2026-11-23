@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Audit & Journaux Techniques{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Journalisation Duale — Audit Métier & Logs Techniques</h1><p>Module 01 (F05) & Audit 4C : Traçabilité immuable des validations PIN, ventes, imports, sauvegardes et incidents système.</p></div>
+  <form method="get" style="display:flex; gap:6px;"><input name="q" value="{{ q }}" class="input" placeholder="Filtrer document, action..." /><button class="btn btn-secondary">Filtrer</button></form>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-header"><h2>Audit Métier Utilisateurs (F05)</h2></div>
+    <div class="table-wrap">
+      <table class="erp-table">
+        <thead><tr><th>Date</th><th>Action</th><th>Résumé & Approbateur</th></tr></thead>
+        <tbody>
+          {% for l in business_logs %}
+            <tr>
+              <td class="small muted">{{ l.created_at|date:'d/m H:i' }}</td>
+              <td><span class="badge {% if l.approver %}badge-warning{% else %}badge-info{% endif %}">{{ l.action }}</span><div class="mono muted">{{ l.document_number }}</div></td>
+              <td class="small">
+                {{ l.summary }}
+                <div class="muted">Acteur : {{ l.actor.display_name|default:'Système' }}{% if l.approver %} · <strong style="color:var(--brand-dark)">Approuvé : {{ l.approver.display_name }}</strong>{% endif %}</div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Journal Technique Système (4C)</h2></div>
+    <div class="table-wrap">
+      <table class="erp-table">
+        <thead><tr><th>Date</th><th>Catégorie</th><th>Message</th></tr></thead>
+        <tbody>
+          {% for t in technical_logs %}
+            <tr>
+              <td class="small muted">{{ t.created_at|date:'d/m H:i' }}</td>
+              <td><span class="badge {% if t.level == 'ERROR' %}badge-danger{% elif t.level == 'WARNING' %}badge-warning{% else %}badge-info{% endif %}">{{ t.category }}</span></td>
+              <td class="small">{{ t.message }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="muted" style="text-align:center; padding:24px;">Aucun événement technique enregistré.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Tarification & Promotions{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Moteur de Tarification Indépendant</h1><p>Ordre de priorité : 1. Prix spécifique client → 2. Promotion datée → 3. Tarif segment → 4. Palier quantité → 5. Prix standard.</p></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Simulateur de prix temps réel</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="simulate" />
+      <div class="field"><label>Article</label><select name="product_id">{% for p in products %}<option value="{{ p.id }}">{{ p.name }} ({{ p.standard_price|fcfa }})</option>{% endfor %}</select></div>
+      <div class="field"><label>Client</label><select name="client_id"><option value="">Comptoir (Standard)</option>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }} ({{ c.segment }})</option>{% endfor %}</select></div>
+      <div class="field"><label>Quantité</label><input type="number" name="quantity" min="1" value="10" class="input" /></div>
+      <button class="btn btn-primary">Simuler prix</button>
+    </form>
+    {% if sim_result %}
+      <div class="alert alert-success" style="margin-top:12px;">
+        <strong>{{ sim_result.product.name }} × {{ sim_result.quantity }}</strong> :
+        Prix standard <del>{{ sim_result.base_price|fcfa }}</del> → <strong>{{ sim_result.resolved_price|fcfa }} / unité</strong>
+        ({{ sim_result.applied_rule|default:'Prix standard' }})
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if 'pricing.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Nouvelle règle tarifaire</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_rule" />
+      <div class="field"><label>Nom *</label><input name="name" class="input" placeholder="Palier 20 sacs..." required /></div>
+      <div class="field"><label>Type</label><select name="rule_type"><option value="CLIENT_SPECIFIC">Prix client</option><option value="PROMOTION">Promotion</option><option value="SEGMENT">Segment Pro</option><option value="QUANTITY_TIER">Palier quantité</option></select></div>
+      <div class="field"><label>Priorité</label><input type="number" name="priority" value="30" class="input" /></div>
+      <div class="field"><label>Article (opt.)</label><select name="product_id"><option value="">— Tous —</option>{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Catégorie (opt.)</label><select name="category_id"><option value="">— Aucune —</option>{% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Client (opt.)</label><select name="client_id"><option value="">— Tous clients —</option>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Segment (opt.)</label><select name="client_segment"><option value="">— Tous segments —</option><option value="PROFESSIONNEL">Artisan Pro</option><option value="ENTREPRISE">Entreprise BTP</option><option value="GROSSISTE">Grossiste</option></select></div>
+      <div class="field"><label>Qté min</label><input type="number" name="min_quantity" value="1" min="1" class="input" /></div>
+      <div class="field"><label>Mode</label><select name="price_mode"><option value="FIXED_PRICE">Prix fixe FCFA</option><option value="PERCENT_DISCOUNT">Remise %</option></select></div>
+      <div class="field"><label>Valeur *</label><input type="number" name="value" min="0" class="input" required /></div>
+      <button class="btn btn-primary">Créer règle</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Priorité</th><th>Règle</th><th>Cible</th><th class="num">Qté min</th><th class="num">Tarif / Remise</th><th></th></tr></thead>
+      <tbody>
+        {% for r in rules %}
+          <tr>
+            <td><span class="badge badge-info">P{{ r.priority }}</span></td>
+            <td><strong>{{ r.name }}</strong><div class="small muted">{{ r.get_rule_type_display }}</div></td>
+            <td class="small">{{ r.product.name|default:r.category.name|default:'Catalogue' }}{% if r.client %} · {{ r.client.name }}{% endif %}{% if r.client_segment %} · {{ r.client_segment }}{% endif %}</td>
+            <td class="num">{{ r.min_quantity|qty }}</td>
+            <td class="num" style="color:var(--success)"><strong>{% if r.price_mode == 'FIXED_PRICE' %}{{ r.value|fcfa }}{% else %}−{{ r.value }}%{% endif %}</strong></td>
+            <td class="num">
+              {% if 'pricing.manage' in user_perms %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete_rule" /><input type="hidden" name="rule_id" value="{{ r.id }}" /><button class="btn btn-secondary btn-sm">Supprimer</button></form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

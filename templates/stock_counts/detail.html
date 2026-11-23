@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}{{ sc.number }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Inventaire {{ sc.number }} — {{ sc.warehouse.name }}</h1>
+    <p>Mode : <strong>{{ sc.get_mode_display }}</strong> · Statut : <span class="badge badge-info">{{ sc.get_status_display }}</span> · Comptage à l'aveugle activé.</p>
+  </div>
+  <a href="/stock-counts/" class="btn btn-secondary">← Retour liste</a>
+</div>
+
+<div class="card">
+  <form method="post">
+    {% csrf_token %}
+    <div class="table-wrap">
+      <table class="erp-table">
+        <thead>
+          <tr>
+            <th>Article</th>
+            {% if sc.status in 'REVIEW,VALIDATED' %}<th class="num">Stock théo.</th>{% endif %}
+            <th class="num">Comptage 1</th>
+            {% if sc.mode == 'DOUBLE' %}<th class="num">Comptage 2</th>{% endif %}
+            {% if sc.status in 'REVIEW,VALIDATED' %}
+              <th class="num">Écart</th>
+              {% if can_view_cost %}<th class="num">Valeur écart</th>{% endif %}
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in lines %}
+            <tr>
+              <td><strong>{{ l.product.name }}</strong><div class="mono muted">{{ l.product.sku }} ({{ l.product.base_unit.symbol }})</div></td>
+              {% if sc.status in 'REVIEW,VALIDATED' %}
+                <td class="num">{{ l.theoretical_qty|qty }}</td>
+              {% endif %}
+              <td class="num">
+                {% if sc.status == 'COUNTING_1' %}
+                  <input type="number" step="any" min="0" name="line_{{ l.id }}" placeholder="Qté comptée" class="input num" style="width:120px;" required />
+                {% elif sc.status == 'COUNTING_2' %}
+                  <span class="badge">Masqué (aveugle)</span>
+                {% else %}
+                  {{ l.count1_qty|qty }} <div class="small muted">{{ l.count1_by }}</div>
+                {% endif %}
+              </td>
+              {% if sc.mode == 'DOUBLE' %}
+              <td class="num">
+                {% if sc.status == 'COUNTING_2' %}
+                  <input type="number" step="any" min="0" name="line_{{ l.id }}" placeholder="Qté comptée 2" class="input num" style="width:120px;" required />
+                {% else %}
+                  {{ l.count2_qty|qty }} <div class="small muted">{{ l.count2_by }}</div>
+                {% endif %}
+              </td>
+              {% endif %}
+              {% if sc.status in 'REVIEW,VALIDATED' %}
+                <td class="num"><span class="badge {% if l.variance_qty == 0 %}badge-success{% else %}badge-danger{% endif %}">{{ l.variance_qty|qty }}</span></td>
+                {% if can_view_cost %}<td class="num">{{ l.variance_value|fcfa }}</td>{% endif %}
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body" style="display:flex; justify-content:flex-end; gap:8px;">
+      {% if sc.status == 'COUNTING_1' %}<button name="action" value="pass_1" class="btn btn-primary">Valider Comptage 1</button>{% endif %}
+      {% if sc.status == 'COUNTING_2' %}<button name="action" value="pass_2" class="btn btn-primary">Valider Comptage 2 (Indépendant)</button>{% endif %}
+      {% if sc.status == 'REVIEW' and 'stock_counts.validate' in user_perms %}<button name="action" value="validate" class="btn btn-success">Approuver & Régulariser le stock</button>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

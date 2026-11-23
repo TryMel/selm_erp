@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Inventaires Physiques{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Inventaires Physiques & Double Comptage</h1><p>Module 12 : Comptage indépendant par 2 employés, détection automatique des écarts et régularisation.</p></div>
+</div>
+
+{% if 'stock_counts.count' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Lancer une campagne d'inventaire</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <div class="field"><label>Dépôt</label><select name="warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Mode</label><select name="mode"><option value="DOUBLE">Double comptage indépendant (Recommandé)</option><option value="SINGLE">Comptage simple</option></select></div>
+      <button class="btn btn-primary">Créer feuille de comptage</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>N° Inventaire</th><th>Dépôt</th><th>Mode</th><th>Statut</th><th>Créé par</th><th></th></tr></thead>
+      <tbody>
+        {% for sc in counts %}
+          <tr>
+            <td><strong>{{ sc.number }}</strong><div class="small muted">{{ sc.created_at|date:'d/m/Y H:i' }}</div></td>
+            <td>{{ sc.warehouse.name }}</td>
+            <td>{{ sc.get_mode_display }}</td>
+            <td><span class="badge {% if sc.status == 'VALIDATED' %}badge-success{% else %}badge-warning{% endif %}">{{ sc.get_status_display }}</span></td>
+            <td>{{ sc.created_by.display_name }}</td>
+            <td class="num"><a href="/stock-counts/{{ sc.id }}/" class="btn btn-secondary btn-sm">Ouvrir</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucun inventaire lancé.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

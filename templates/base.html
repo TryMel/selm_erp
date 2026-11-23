@@ -1,0 +1,309 @@
+{% load static erp_tags %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}QuincaPro ERP{% endblock %} — Gestion de Quincaillerie</title>
+  <link rel="stylesheet" href="{% static 'css/erp.css' %}" />
+</head>
+<body>
+<div class="erp-shell">
+  <div class="sidebar-backdrop" id="erpBackdrop" onclick="toggleSidebar(false)"></div>
+  <aside class="erp-sidebar" id="erpSidebar" aria-label="Navigation principale">
+    <div class="erp-brand">
+      <div class="erp-brand-left">
+        <div class="erp-brand-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L3 7v10l9 5 9-5V7l-9-5z"/><path d="M12 22V12"/><path d="M21 7l-9 5-9-5"/>
+          </svg>
+        </div>
+        <div>
+          <div class="erp-brand-title">QuincaPro ERP</div>
+          <div class="erp-brand-sub">Quincaillerie · FCFA</div>
+        </div>
+      </div>
+      <button type="button" class="sidebar-close-btn" onclick="toggleSidebar(false)" aria-label="Fermer le menu">✕</button>
+    </div>
+
+    <div class="sidebar-search">
+      <div class="sidebar-search-wrap">
+        <span class="sidebar-search-icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </span>
+        <input id="navQuickFilter" type="search" placeholder="Filtrer un module... (Ctrl+K)" autocomplete="off" oninput="filterNav(this.value)" />
+      </div>
+    </div>
+
+    <nav class="erp-nav" id="erpNav">
+      <div class="nav-section">
+        <div class="nav-section-title">Pilotage</div>
+        {% if 'dashboard.view' in user_perms %}
+          <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+            <span>Tableau de bord</span>
+          </a>
+        {% endif %}
+        {% if 'reporting.view' in user_perms %}
+          <a class="nav-link {% if '/reporting' in request.path %}active{% endif %}" href="/reporting/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span>Reporting &amp; TVA CI</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Ventes &amp; Comptoir</div>
+        {% if 'pos.sell' in user_perms %}
+          <a class="nav-link {% if '/pos' in request.path %}active{% endif %}" href="/pos/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span>Point de Vente (POS)</span>
+          </a>
+        {% endif %}
+        {% if 'cash.view' in user_perms %}
+          <a class="nav-link {% if '/cash' in request.path %}active{% endif %}" href="/cash/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span>Caisses &amp; Clôtures</span>
+          </a>
+        {% endif %}
+        {% if 'sales.view' in user_perms %}
+          <a class="nav-link {% if '/sales' in request.path %}active{% endif %}" href="/sales/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>Devis, Cmd &amp; Factures</span>
+          </a>
+        {% endif %}
+        {% if 'deliveries.view' in user_perms %}
+          <a class="nav-link {% if '/deliveries' in request.path %}active{% endif %}" href="/deliveries/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <span>Livraisons Chantier</span>
+          </a>
+        {% endif %}
+        {% if 'returns.view' in user_perms %}
+          <a class="nav-link {% if '/returns' in request.path %}active{% endif %}" href="/returns/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            <span>Retours &amp; Avoirs</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Catalogue &amp; Prix</div>
+        {% if 'catalog.view' in user_perms %}
+          <a class="nav-link {% if '/catalog' in request.path %}active{% endif %}" href="/catalog/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <span>Articles &amp; Unités</span>
+          </a>
+        {% endif %}
+        {% if 'pricing.view' in user_perms %}
+          <a class="nav-link {% if '/pricing' in request.path %}active{% endif %}" href="/pricing/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            <span>Tarification &amp; Promos</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Stocks &amp; Achats</div>
+        {% if 'inventory.view' in user_perms %}
+          <a class="nav-link {% if '/inventory' in request.path %}active{% endif %}" href="/inventory/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-6 9 6v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Stocks &amp; Transferts</span>
+          </a>
+        {% endif %}
+        {% if 'stock_counts.view' in user_perms %}
+          <a class="nav-link {% if '/stock-counts' in request.path %}active{% endif %}" href="/stock-counts/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Inventaires</span>
+          </a>
+        {% endif %}
+        {% if 'purchases.view' in user_perms %}
+          <a class="nav-link {% if '/purchases' in request.path %}active{% endif %}" href="/purchases/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <span>Achats &amp; Réceptions</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Tiers &amp; Finances</div>
+        {% if 'clients.view' in user_perms %}
+          <a class="nav-link {% if '/clients' in request.path %}active{% endif %}" href="/clients/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Clients &amp; Crédit</span>
+          </a>
+        {% endif %}
+        {% if 'suppliers.view' in user_perms %}
+          <a class="nav-link {% if '/suppliers' in request.path %}active{% endif %}" href="/suppliers/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <span>Fournisseurs</span>
+          </a>
+        {% endif %}
+        {% if 'expenses.view' in user_perms %}
+          <a class="nav-link {% if '/expenses' in request.path %}active{% endif %}" href="/expenses/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Dépenses</span>
+          </a>
+        {% endif %}
+        {% if 'accounting.view' in user_perms %}
+          <a class="nav-link {% if '/accounting' in request.path %}active{% endif %}" href="/accounting/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Comptabilité SYSCOHADA</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Gouvernance</div>
+        {% if 'organization.view' in user_perms %}
+          <a class="nav-link {% if '/organization' in request.path %}active{% endif %}" href="/organization/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="9" y1="6" x2="9.01" y2="6"/><line x1="15" y1="6" x2="15.01" y2="6"/><line x1="9" y1="10" x2="9.01" y2="10"/><line x1="15" y1="10" x2="15.01" y2="10"/><path d="M9 22v-6h6v6"/></svg>
+            <span>Sociétés &amp; Dépôts</span>
+          </a>
+        {% endif %}
+        {% if 'documents.view' in user_perms %}
+          <a class="nav-link {% if '/documents' in request.path %}active{% endif %}" href="/documents/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            <span>Pièces Jointes</span>
+          </a>
+        {% endif %}
+        {% if 'data_import.manage' in user_perms %}
+          <a class="nav-link {% if '/data-import' in request.path %}active{% endif %}" href="/data-import/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Reprise Excel / CSV</span>
+          </a>
+        {% endif %}
+        {% if 'backups.manage' in user_perms %}
+          <a class="nav-link {% if '/backups' in request.path %}active{% endif %}" href="/backups/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span>Sauvegardes</span>
+          </a>
+        {% endif %}
+        {% if 'users.view' in user_perms %}
+          <a class="nav-link {% if '/users' in request.path %}active{% endif %}" href="/users/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Utilisateurs &amp; Rôles</span>
+          </a>
+        {% endif %}
+        {% if 'audit.view' in user_perms %}
+          <a class="nav-link {% if '/audit' in request.path %}active{% endif %}" href="/audit/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>Audit &amp; Journaux</span>
+          </a>
+        {% endif %}
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-avatar" aria-hidden="true">{{ request.user.display_name|slice:":2"|upper }}</div>
+      <div class="sidebar-user-meta">
+        <div class="sidebar-user-name">{{ request.user.display_name }}</div>
+        <div class="sidebar-user-role">{{ request.user.role.name|default:'Superuser' }} · Max {{ request.user.max_discount_percent }}%</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="erp-main">
+    <header class="erp-topbar no-print">
+      <div class="topbar-left">
+        <button type="button" class="btn btn-secondary btn-sm mobile-menu-btn" onclick="toggleSidebar(true)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <span>Menu</span>
+        </button>
+
+        {% if available_companies|length > 1 %}
+          <form method="post" action="/organization/switch-company/" class="company-pill">
+            {% csrf_token %}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-6h6v6"/></svg>
+            <select name="company_id" class="company-select" onchange="this.form.submit()" aria-label="Société active">
+              {% for comp in available_companies %}
+                <option value="{{ comp.id }}" {% if active_company and comp.id == active_company.id %}selected{% endif %}>
+                  {{ comp.legal_name }} ({{ comp.code }})
+                </option>
+              {% endfor %}
+            </select>
+          </form>
+        {% elif active_company %}
+          <div class="company-pill">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-6h6v6"/></svg>
+            <strong class="small">{{ active_company.legal_name }}</strong>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="topbar-right">
+        <span id="netStatusBadge" class="badge badge-success">
+          <span class="status-dot"></span> En ligne
+        </span>
+        {% if 'pos.sell' in user_perms %}
+          <a href="/pos/" class="btn btn-primary btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span>POS Comptoir</span>
+          </a>
+        {% endif %}
+        <form method="post" action="/logout/">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Déconnexion</span>
+          </button>
+        </form>
+      </div>
+    </header>
+
+    <main class="erp-content">
+      {% if messages %}
+        <div class="alerts-stack no-print">
+          {% for m in messages %}
+            <div class="alert alert-{{ m.tags|default:'info' }}">{{ m }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script>
+  function toggleSidebar(open) {
+    document.getElementById('erpSidebar').classList.toggle('open', open);
+    document.getElementById('erpBackdrop').classList.toggle('open', open);
+  }
+  function filterNav(query) {
+    const q = (query || '').trim().toLowerCase();
+    document.querySelectorAll('#erpNav .nav-section').forEach(section => {
+      let visible = 0;
+      section.querySelectorAll('.nav-link').forEach(link => {
+        const match = !q || link.textContent.toLowerCase().includes(q);
+        link.style.display = match ? 'flex' : 'none';
+        if (match) visible++;
+      });
+      section.style.display = visible > 0 ? 'block' : 'none';
+    });
+  }
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const el = document.getElementById('navQuickFilter');
+      if (el) { el.focus(); el.select(); }
+    }
+  });
+  function syncNetBadge() {
+    const el = document.getElementById('netStatusBadge');
+    if (!el) return;
+    if (navigator.onLine) {
+      el.className = 'badge badge-success';
+      el.innerHTML = '<span class="status-dot"></span> En ligne';
+    } else {
+      el.className = 'badge badge-danger';
+      el.innerHTML = '<span class="status-dot"></span> Hors-ligne';
+    }
+  }
+  window.addEventListener('online', syncNetBadge);
+  window.addEventListener('offline', syncNetBadge);
+  syncNetBadge();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

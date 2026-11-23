@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Reporting & TVA Côte d'Ivoire{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Reporting, Rentabilité & État TVA (DGI CI)</h1>
+    <p>Analyse des marges par article, modes d'encaissement et récapitulatif TVA collectée / déductible.</p>
+  </div>
+  <div class="page-actions">
+    <a href="?export=csv" class="btn btn-secondary">Exporter CSV</a>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:18px;">
+  <div class="card kpi-card">
+    <span class="kpi-label">TVA Collectée sur ventes (30j)</span>
+    <span class="kpi-value">{{ data.kpis.tva_collected|fcfa }}</span>
+    <span class="kpi-sub">Factures & Tickets FNE</span>
+  </div>
+  <div class="card kpi-card">
+    <span class="kpi-label">TVA Déductible sur achats (30j)</span>
+    <span class="kpi-value">{{ data.kpis.tva_deductible|fcfa }}</span>
+    <span class="kpi-sub">Réceptions fournisseurs</span>
+  </div>
+  <div class="card kpi-card">
+    <span class="kpi-label">TVA Nette à reverser (estimée)</span>
+    <span class="kpi-value" style="color:var(--info)">{{ data.kpis.tva_net|fcfa }}</span>
+    <span class="kpi-sub">À valider par votre comptable SYSCOHADA</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Rentabilité détaillée par article</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead>
+        <tr>
+          <th>Article</th><th class="num">Qté base</th><th class="num">CA TTC</th>
+          {% if can_view_margins %}<th class="num">Coût d'achat</th><th class="num">Marge brute</th><th class="num">Taux</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in data.top_products %}
+          <tr>
+            <td><strong>{{ p.name }}</strong></td>
+            <td class="num">{{ p.qty|qty }}</td>
+            <td class="num">{{ p.revenue|fcfa }}</td>
+            {% if can_view_margins %}
+              <td class="num muted">{{ p.cost|fcfa }}</td>
+              <td class="num" style="color:var(--success)"><strong>{{ p.margin|fcfa }}</strong></td>
+              <td class="num"><span class="badge {% if p.margin_rate < 18 %}badge-warning{% else %}badge-success{% endif %}">{{ p.margin_rate }} %</span></td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

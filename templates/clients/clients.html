@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Clients & Crédit Maître{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Clients, CRM & Crédit Client</h1>
+    <p>Suivi centralisé des encours, plafonds de crédit, recouvrements et attestations d'exonération TVA.</p>
+  </div>
+  <form method="get" style="display:flex; gap:6px;"><input name="q" value="{{ q }}" class="input" placeholder="Rechercher..." /><button class="btn btn-secondary">Filtrer</button></form>
+</div>
+
+{% if 'clients.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Nouvelle fiche client</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create" />
+      <div class="field"><label>Nom / Raison sociale *</label><input name="name" class="input" required /></div>
+      <div class="field"><label>Segment</label><select name="segment"><option value="PARTICULIER">Particulier</option><option value="PROFESSIONNEL">Artisan Pro</option><option value="ENTREPRISE">Entreprise BTP</option><option value="GROSSISTE">Grossiste</option></select></div>
+      <div class="field"><label>Téléphone</label><input name="phone" class="input" /></div>
+      <div class="field"><label>Plafond crédit (FCFA)</label><input type="number" name="credit_limit" value="0" min="0" class="input" /></div>
+      <div class="field"><label>N° Attestation exonération TVA</label><input name="exemption_certificate" class="input" placeholder="Optionnel (ONG/Export)" /></div>
+      <label class="small" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" name="tax_exempt" /> Exonéré TVA</label>
+      <button class="btn btn-primary">Créer client</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Client</th><th>Segment & Fiscalité</th><th>Encours / Plafond crédit</th><th>Statut</th><th>Recouvrement</th></tr></thead>
+      <tbody>
+        {% for c in clients %}
+          <tr>
+            <td><strong>{{ c.name }}</strong><div class="small muted">{{ c.code }} · {{ c.phone|default:'—' }}</div></td>
+            <td><span class="badge badge-info">{{ c.get_segment_display }}</span> {% if c.tax_exempt %}<span class="badge badge-success">Exonéré TVA</span>{% endif %}</td>
+            <td style="min-width:210px;">
+              <div style="display:flex; justify-content:space-between;" class="small">
+                <strong>{{ c.current_balance|fcfa }}</strong>
+                <span class="muted">/ {{ c.credit_limit|fcfa }}</span>
+              </div>
+              {% if c.credit_limit > 0 %}
+                <div class="progress"><div class="progress-bar {% if c.credit_usage_pct >= 90 %}danger{% elif c.credit_usage_pct >= 70 %}warn{% endif %}" style="width:{{ c.credit_usage_pct }}%"></div></div>
+              {% endif %}
+            </td>
+            <td><span class="badge {% if c.status == 'ACTIVE' %}badge-success{% else %}badge-danger{% endif %}">{{ c.get_status_display }}</span></td>
+            <td>
+              {% if c.current_balance > 0 and 'clients.manage' in user_perms %}
+                <form method="post" style="display:flex; gap:6px; flex-wrap:wrap;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="collect_payment" />
+                  <input type="hidden" name="client_id" value="{{ c.id }}" />
+                  <input type="number" name="amount" min="1" max="{{ c.current_balance|floatformat:0 }}" value="{{ c.current_balance|floatformat:0 }}" class="input num" style="width:105px;" required />
+                  <select name="payment_method" style="width:auto;"><option value="CASH">Espèces</option><option value="WAVE">Wave</option><option value="ORANGE_MONEY">OM</option><option value="BANK_TRANSFER">Virement</option></select>
+                  <input name="reference" class="input" style="width:110px;" placeholder="Réf. Wave/Reçu" />
+                  <button class="btn btn-success btn-sm">Encaisser</button>
+                </form>
+              {% else %}
+                <span class="small muted">Soldé</span>
+              {% endif %}
+              {% if c.credit_ledger.all %}
+                <details style="margin-top:6px;">
+                  <summary class="small link" style="cursor:pointer;">Relevé de compte ({{ c.credit_ledger.all|length }})</summary>
+                  <div class="small" style="margin-top:4px; display:flex; flex-direction:column; gap:3px;">
+                    {% for entry in c.credit_ledger.all|slice:":5" %}
+                      <div>{{ entry.created_at|date:'d/m' }} · {{ entry.get_entry_type_display }} : <strong>{{ entry.amount|fcfa }}</strong> (Solde {{ entry.balance_after|fcfa }})</div>
+                    {% endfor %}
+                  </div>
+                </details>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

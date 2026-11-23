@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Sociétés, Sites & Dépôts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Gouvernance Multi-Sociétés, Sites, Dépôts & Fiscalité CI</h1><p>Hiérarchie officielle : <strong>Société → Magasin → Dépôt → Zone → Emplacement</strong> + règles métier globales.</p></div>
+</div>
+
+{% if 'organization.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Paramètres de gouvernance — {{ company.legal_name }} ({{ company.code }})</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_rules" />
+      <div class="field"><label>Politique Stock Négatif</label>
+        <select name="negative_stock_policy">
+          <option value="FORBIDDEN" {% if company.negative_stock_policy == 'FORBIDDEN' %}selected{% endif %}>Interdit (blocage strict)</option>
+          <option value="ALLOWED_WITH_PERMISSION" {% if company.negative_stock_policy == 'ALLOWED_WITH_PERMISSION' %}selected{% endif %}>Autorisé avec permission / PIN</option>
+          <option value="ALWAYS_ALLOWED" {% if company.negative_stock_policy == 'ALWAYS_ALLOWED' %}selected{% endif %}>Toujours autorisé</option>
+        </select>
+      </div>
+      <div class="field"><label>Valorisation stock</label>
+        <select name="valuation_method">
+          <option value="CMUP" {% if company.valuation_method == 'CMUP' %}selected{% endif %}>CMUP (Défaut)</option>
+          <option value="FIFO" {% if company.valuation_method == 'FIFO' %}selected{% endif %}>FIFO</option>
+        </select>
+      </div>
+      <div class="field"><label>Seuil écart caisse sans validation (FCFA)</label><input type="number" name="cash_variance_threshold" min="0" value="{{ company.cash_variance_threshold|floatformat:0 }}" class="input" /></div>
+      <div class="field"><label>NCC (DGI CI)</label><input name="ncc" value="{{ company.ncc }}" class="input" /></div>
+      <div class="field"><label>RCCM</label><input name="rccm" value="{{ company.rccm }}" class="input" /></div>
+      <label class="small" style="display:flex; gap:6px; align-items:center;"><input type="checkbox" name="fne_enabled" {% if company.fne_enabled %}checked{% endif %} /> Facturation Normalisée FNE</label>
+      <button class="btn btn-primary">Enregistrer les règles</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-header"><h2>Arborescence Sites → Dépôts → Zones → Emplacements</h2></div>
+    <div class="card-body">
+      {% for st in stores %}
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+          <strong>Magasin : {{ st.name }}</strong> <span class="mono muted">({{ st.code }})</span>
+          {% for wh in st.warehouses.all %}
+            <div style="margin:6px 0 0 16px;">
+              <strong>Dépôt : {{ wh.name }}</strong> <span class="badge">{{ wh.code }}</span>
+              {% for z in wh.zones.all %}
+                <div class="small" style="margin:4px 0 0 16px;">
+                  Zone : {{ z.name }} {% if z.is_quarantine %}<span class="badge badge-danger">Quarantaine</span>{% endif %}
+                  — Emplacements :
+                  {% for loc in z.locations.all %}<span class="badge badge-info">{{ loc.code }}</span> {% empty %}<span class="muted">aucun</span>{% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h2>Régimes de TVA Côte d'Ivoire (Audit 2A)</h2></div>
+    <div class="table-wrap">
+      <table class="erp-table">
+        <thead><tr><th>Code</th><th>Libellé</th><th class="num">Taux</th><th>Statut</th></tr></thead>
+        <tbody>
+          {% for t in tax_rules %}
+            <tr>
+              <td class="mono"><strong>{{ t.code }}</strong></td>
+              <td>{{ t.name }}</td>
+              <td class="num"><strong>{{ t.rate }} %</strong></td>
+              <td>{% if t.is_default %}<span class="badge badge-success">Défaut</span>{% else %}<span class="badge">Actif</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

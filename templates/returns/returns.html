@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Retours & Avoirs{% endblock %}
+{% block content %}
+<div class="page-header"><div><h1>Retours Clients & Fournisseurs</h1><p>Réintégration en stock vendable ou isolation en quarantaine SAV + génération d'avoir.</p></div></div>
+
+{% if 'returns.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Déclarer un retour marchandise</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <div class="field"><label>Type</label><select name="return_type"><option value="CLIENT_RETURN">Retour Client</option><option value="SUPPLIER_RETURN">Retour Fournisseur</option></select></div>
+      <div class="field"><label>Client (si retour client)</label><select name="client_id"><option value="">Comptoir</option>{% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Fournisseur (si retour fourn.)</label><select name="supplier_id"><option value="">— Sélectionner —</option>{% for s in suppliers %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Dépôt</label><select name="warehouse_id">{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Article</label><select name="product_id">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Qté</label><input type="number" name="quantity" min="1" value="1" class="input" required /></div>
+      <div class="field"><label>État produit</label><select name="condition"><option value="GOOD_RESTOCK">Bon état → Stock</option><option value="DEFECTIVE_QUARANTINE">Défectueux → Quarantaine</option></select></div>
+      <div class="field"><label>Résolution</label><select name="resolution"><option value="CREDIT_NOTE">Avoir en compte</option><option value="REFUND">Remboursement</option><option value="REPLACEMENT">Remplacement</option></select></div>
+      <div class="field"><label>Motif *</label><input name="reason" class="input" required placeholder="Défaut constaté..." /></div>
+      <button class="btn btn-primary">Valider le retour</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>N° Retour</th><th>Type</th><th>Article</th><th>État / Résolution</th><th>Motif</th><th class="num">Montant</th></tr></thead>
+      <tbody>
+        {% for r in returns %}
+          <tr>
+            <td><strong>{{ r.number }}</strong><div class="small muted">{{ r.created_at|date:'d/m/Y' }}</div></td>
+            <td><span class="badge badge-info">{{ r.get_return_type_display }}</span></td>
+            <td>{{ r.product.name }} (×{{ r.quantity|qty }})</td>
+            <td class="small">{{ r.get_condition_display }} · <strong>{{ r.get_resolution_display }}</strong></td>
+            <td class="small muted">{{ r.reason }}</td>
+            <td class="num"><strong>{{ r.total_amount|fcfa }}</strong></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucun retour enregistré.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

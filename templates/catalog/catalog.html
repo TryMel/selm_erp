@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% load erp_tags %}
+{% block title %}Catalogue Articles & Unités{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Catalogue Articles, Unités & Conditionnements</h1>
+    <p>Référentiel maître des produits, prix standard de référence, TVA et conditionnements de vente/achat.</p>
+  </div>
+  <form method="get" style="display:flex; gap:6px;">
+    <input name="q" value="{{ q }}" class="input" placeholder="Rechercher SKU, nom, code-barres..." />
+    <button class="btn btn-secondary">Filtrer</button>
+  </form>
+</div>
+
+{% if 'catalog.manage' in user_perms %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Nouvel article</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_product" />
+      <div class="field"><label>SKU *</label><input name="sku" class="input" placeholder="OUT-001" required /></div>
+      <div class="field"><label>Désignation *</label><input name="name" class="input" required /></div>
+      <div class="field"><label>Code-barres EAN</label><input name="barcode" class="input" /></div>
+      <div class="field"><label>Catégorie</label><select name="category_id">{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Unité de base</label><select name="base_unit_id">{% for u in units %}<option value="{{ u.id }}">{{ u.name }} ({{ u.family.name }})</option>{% endfor %}</select></div>
+      <div class="field"><label>TVA CI</label><select name="tax_rule_id">{% for t in tax_rules %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Coût achat (FCFA)</label><input type="number" name="purchase_cost" min="0" value="0" class="input" required /></div>
+      <div class="field"><label>Prix standard TTC</label><input type="number" name="standard_price" min="0" value="0" class="input" required /></div>
+      <div class="field"><label>Stock min</label><input type="number" name="min_stock" min="0" value="5" class="input" /></div>
+      <button class="btn btn-primary">Créer article</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead>
+        <tr>
+          <th>SKU & Article</th><th>Catégorie / TVA</th><th>Unité & Conditionnements</th>
+          {% if can_view_cost %}<th class="num">Coût CMUP</th>{% endif %}
+          <th class="num">Prix Std TTC</th><th class="num">Stock Total</th><th>Statut</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+          <tr>
+            <td><strong>{{ p.name }}</strong><div class="mono muted">{{ p.sku }}{% if p.barcode %} · {{ p.barcode }}{% endif %}</div></td>
+            <td>{{ p.category.name }}<div class="small muted">{{ p.tax_rule.name }}</div></td>
+            <td class="small">
+              <strong>{{ p.base_unit.name }}</strong>
+              {% for pk in p.packagings.all %}
+                <div><span class="badge badge-info">{{ pk.label }} (×{{ pk.conversion_factor|qty }})</span></div>
+              {% endfor %}
+            </td>
+            {% if can_view_cost %}<td class="num muted">{{ p.purchase_cost|fcfa }}</td>{% endif %}
+            <td class="num"><strong>{{ p.standard_price|fcfa }}</strong></td>
+            <td class="num"><span class="badge {% if p.total_stock <= p.min_stock %}badge-danger{% else %}badge-success{% endif %}">{{ p.total_stock|default:0|qty }} {{ p.base_unit.symbol }}</span></td>
+            <td><span class="badge {% if p.is_active %}badge-success{% else %}badge-danger{% endif %}">{% if p.is_active %}Actif{% else %}Inactif{% endif %}</span></td>
+            <td class="num">
+              {% if 'catalog.manage' in user_perms %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle_active" /><input type="hidden" name="product_id" value="{{ p.id }}" /><button class="btn btn-secondary btn-sm">{% if p.is_active %}Désactiver{% else %}Activer{% endif %}</button></form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if 'catalog.manage' in user_perms %}
+<div class="card">
+  <div class="card-header"><h2>Ajouter un conditionnement (Boîte, Carton, Rouleau...)</h2></div>
+  <div class="card-body">
+    <form method="post" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_packaging" />
+      <div class="field"><label>Article</label><select name="product_id">{% for p in products %}<option value="{{ p.id }}">[{{ p.sku }}] {{ p.name }} ({{ p.base_unit.family.name }})</option>{% endfor %}</select></div>
+      <div class="field"><label>Unité conditionnement</label><select name="unit_id">{% for u in units %}<option value="{{ u.id }}">{{ u.name }} ({{ u.family.name }})</option>{% endfor %}</select></div>
+      <div class="field"><label>Libellé</label><input name="label" class="input" placeholder="Boîte de 50" required /></div>
+      <div class="field"><label>Facteur conversion</label><input type="number" step="any" min="0.01" name="conversion_factor" class="input" value="50" required /></div>
+      <div class="field"><label>Prix dédié (optionnel)</label><input type="number" name="standard_price" class="input" /></div>
+      <button class="btn btn-secondary">Ajouter</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

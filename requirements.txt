@@ -1,0 +1,7 @@
+Django>=5.2,<6.0
+whitenoise>=6.8
+openpyxl>=3.1
+gunicorn>=23.0
+# Optionnel pour Hostinger VPS + PostgreSQL ou MySQL :
+# psycopg[binary]>=3.2
+# PyMySQL>=1.1

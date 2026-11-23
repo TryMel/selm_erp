@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Reprise de Données Excel / CSV{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1>Reprise de Données Excel (.xlsx) & CSV</h1><p>Audit 2B : Workflow sécurisé en 2 temps — <strong>Simulation (Dry-Run)</strong> avec journal d'erreurs ligne par ligne, puis <strong>Import atomique</strong>.</p></div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-header"><h2>Importer un fichier</h2></div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" class="form-grid" style="align-items:end;">
+      {% csrf_token %}
+      <div class="field"><label>Données à reprendre</label>
+        <select name="target">
+          <option value="PRODUCTS">Articles (colonnes : sku, name, standard_price, purchase_cost)</option>
+          <option value="CLIENTS">Clients (colonnes : code, name, phone, segment, credit_limit)</option>
+          <option value="SUPPLIERS">Fournisseurs (colonnes : code, name, phone)</option>
+          <option value="INITIAL_STOCK">Stock Initial (colonnes : sku, quantity, warehouse_code, unit_cost)</option>
+        </select>
+      </div>
+      <div class="field"><label>Mode d'exécution</label>
+        <select name="mode">
+          <option value="simulate">1. Simulation (Dry-Run sans modifier la base)</option>
+          <option value="commit">2. Import définitif atomique</option>
+        </select>
+      </div>
+      <div class="field"><label>Fichier .csv ou .xlsx *</label><input type="file" name="file" accept=".csv,.xlsx" class="input" required /></div>
+      <button class="btn btn-primary">Exécuter</button>
+    </form>
+
+    {% if last_job and last_job.errors %}
+      <div class="alert alert-danger" style="margin-top:14px;">
+        <strong>Journal d'erreurs détectées ({{ last_job.error_rows }}) :</strong>
+        <ul style="margin:6px 0 0; padding-left:18px;">
+          {% for err in last_job.errors %}<li>Ligne {{ err.row }} : {{ err.error }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h2>Historique des reprises</h2></div>
+  <div class="table-wrap">
+    <table class="erp-table">
+      <thead><tr><th>Date</th><th>Cible</th><th>Fichier</th><th>Statut</th><th class="num">Valides / Total</th><th class="num">Erreurs</th></tr></thead>
+      <tbody>
+        {% for j in jobs %}
+          <tr>
+            <td class="small muted">{{ j.created_at|date:'d/m/Y H:i' }}</td>
+            <td><strong>{{ j.get_target_display }}</strong></td>
+            <td class="mono">{{ j.filename }}</td>
+            <td><span class="badge {% if j.status == 'COMMITTED' %}badge-success{% elif j.error_rows %}badge-danger{% else %}badge-info{% endif %}">{{ j.get_status_display }}</span></td>
+            <td class="num">{{ j.valid_rows }} / {{ j.total_rows }}</td>
+            <td class="num">{{ j.error_rows }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="text-align:center; padding:24px;">Aucune reprise exécutée.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
